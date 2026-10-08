@@ -1,0 +1,77 @@
+# A slow pan across the far trees behind the barn (Save 2, Hawkhaven, the
+# "behind" heading): sixteen pictures a third of a degree apart, for an
+# animated before/after of the shimmer. Each mark is followed by a pause
+# long enough for the runner to take its picture before the head moves on.
+# Run with OBVR's runner:
+#   powershell -ExecutionPolicy Bypass -File D:\Modding\OBVR\tools\hand-script-run.ps1 ^
+#     -Script D:\Modding\FoliageAA\tools\hand-scripts\foliage-pan.txt ^
+#     -Save "<save name>" -ShotWidth 0 -ArtifactRoot D:\Modding\FoliageAA\artifacts
+
+expect HandScript: finished
+reject HandScript: WARNING
+
+wait 12
+head yaw 178.0
+wait 2
+mark f01
+wait 1.5
+head yaw 178.3
+wait 0.3
+mark f02
+wait 1.5
+head yaw 178.6
+wait 0.3
+mark f03
+wait 1.5
+head yaw 178.9
+wait 0.3
+mark f04
+wait 1.5
+head yaw 179.2
+wait 0.3
+mark f05
+wait 1.5
+head yaw 179.5
+wait 0.3
+mark f06
+wait 1.5
+head yaw 179.8
+wait 0.3
+mark f07
+wait 1.5
+head yaw 180.1
+wait 0.3
+mark f08
+wait 1.5
+head yaw 180.4
+wait 0.3
+mark f09
+wait 1.5
+head yaw 180.7
+wait 0.3
+mark f10
+wait 1.5
+head yaw 181.0
+wait 0.3
+mark f11
+wait 1.5
+head yaw 181.3
+wait 0.3
+mark f12
+wait 1.5
+head yaw 181.6
+wait 0.3
+mark f13
+wait 1.5
+head yaw 181.9
+wait 0.3
+mark f14
+wait 1.5
+head yaw 182.2
+wait 0.3
+mark f15
+wait 1.5
+head yaw 182.5
+wait 0.3
+mark f16
+wait 1.5
