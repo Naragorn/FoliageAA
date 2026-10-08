@@ -1,0 +1,30 @@
+# A look around for the foliage: the save loaded, the synthetic head turned
+# to four headings with a picture at each, nothing else. For judging the
+# leaves with FoliageAA on against off. Run with OBVR's runner:
+#   powershell -ExecutionPolicy Bypass -File D:\Modding\OBVR\tools\hand-script-run.ps1 ^
+#     -Script D:\Modding\FoliageAA\tools\hand-scripts\foliage-look.txt ^
+#     -Save "<save name>" -ShotWidth 0 -ArtifactRoot D:\Modding\FoliageAA\artifacts
+
+expect HandScript: finished
+reject HandScript: WARNING
+
+wait 12
+mark ahead
+wait 0.5
+head yaw 90
+wait 2
+mark right
+wait 0.5
+head yaw 180
+wait 2
+mark behind
+wait 0.5
+head yaw 270
+wait 2
+mark left
+wait 0.5
+head yaw 0
+head pitch 15
+wait 2
+mark ahead_up
+wait 1
