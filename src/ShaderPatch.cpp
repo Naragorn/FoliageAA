@@ -41,16 +41,20 @@ float Clamp(float value, float low, float high) {
 	return value < low ? low : (value > high ? high : value);
 }
 
+bool Same(const uint8_t* bytes, size_t length, const uint8_t* known, size_t knownLength) {
+	return length == knownLength && std::memcmp(bytes, known, length) == 0;
+}
+
 }  // namespace
 
 LeafShader IdentifyLeafShader(const uint8_t* bytes, size_t length) {
 	if (bytes == nullptr) {
 		return LeafShader::None;
 	}
-	if (length == sizeof(kLeaf2000) && std::memcmp(bytes, kLeaf2000, length) == 0) {
+	if (Same(bytes, length, kLeaf2000, sizeof(kLeaf2000))) {
 		return LeafShader::Leaf2000;
 	}
-	if (length == sizeof(kLeaf2001) && std::memcmp(bytes, kLeaf2001, length) == 0) {
+	if (Same(bytes, length, kLeaf2001, sizeof(kLeaf2001))) {
 		return LeafShader::Leaf2001;
 	}
 	return LeafShader::None;
@@ -61,6 +65,40 @@ const char* LeafShaderName(LeafShader shader) {
 		case LeafShader::Leaf2000: return "STLEAF2000";
 		case LeafShader::Leaf2001: return "STLEAF2001";
 		case LeafShader::None: return "none";
+	}
+	return "none";
+}
+
+LeafVertexShader IdentifyLeafVertexShader(const uint8_t* bytes, size_t length) {
+	if (bytes == nullptr) {
+		return LeafVertexShader::None;
+	}
+	if (Same(bytes, length, kLeafVs000_1734322A, sizeof(kLeafVs000_1734322A)) ||
+	    Same(bytes, length, kLeafVs000_0C737235, sizeof(kLeafVs000_0C737235))) {
+		return LeafVertexShader::Vs000;
+	}
+	if (Same(bytes, length, kLeafVs001_68B68346, sizeof(kLeafVs001_68B68346)) ||
+	    Same(bytes, length, kLeafVs001_5E91704D, sizeof(kLeafVs001_5E91704D))) {
+		return LeafVertexShader::Vs001;
+	}
+	if (Same(bytes, length, kLeafVs002_F39C1C4D, sizeof(kLeafVs002_F39C1C4D)) ||
+	    Same(bytes, length, kLeafVs002_3CC9900E, sizeof(kLeafVs002_3CC9900E))) {
+		return LeafVertexShader::Vs002;
+	}
+	if (Same(bytes, length, kLeafVs003_A87E9827, sizeof(kLeafVs003_A87E9827)) ||
+	    Same(bytes, length, kLeafVs003_14152999, sizeof(kLeafVs003_14152999))) {
+		return LeafVertexShader::Vs003;
+	}
+	return LeafVertexShader::None;
+}
+
+const char* LeafVertexShaderName(LeafVertexShader shader) {
+	switch (shader) {
+		case LeafVertexShader::Vs000: return "STLEAF000";
+		case LeafVertexShader::Vs001: return "STLEAF001";
+		case LeafVertexShader::Vs002: return "STLEAF002";
+		case LeafVertexShader::Vs003: return "STLEAF003";
+		case LeafVertexShader::None: return "none";
 	}
 	return "none";
 }
@@ -123,17 +161,17 @@ bool BuildSharpenedShader(const uint8_t* original, size_t length, std::vector<ui
 	return true;
 }
 
-bool ShaderCache::Lookup(void* shader, void** replacement) const {
+bool ShaderCache::Lookup(void* shader, ShaderEntry* out) const {
 	const auto found = m_entries.find(shader);
 	if (found == m_entries.end()) {
 		return false;
 	}
-	*replacement = found->second;
+	*out = found->second;
 	return true;
 }
 
-void ShaderCache::Remember(void* shader, void* replacement) {
-	m_entries[shader] = replacement;
+void ShaderCache::Remember(void* shader, const ShaderEntry& entry) {
+	m_entries[shader] = entry;
 }
 
 void ShaderCache::Forget(void* shader) {

@@ -145,7 +145,7 @@ void TestLoadOk() {
 	foliageaa::ResetForTest();
 	Check(foliageaa::Load(kGame, kFakeHost), "Load true");
 	Check(fake.registrations == 1 &&
-	          fake.Logged("Waiting for the game to initialize (Mode=nvidia, SharpenLeaves=1, Threshold=engine, Steepness=4.0, DumpShaders=0)"),
+	          fake.Logged("Waiting for the game to initialize (Mode=nvidia, Coverage=0, Leaves=supersample, Passes=8, SharpenLeaves=1, Threshold=engine, Steepness=4.0, DumpShaders=0)"),
 	      "registered with the INI's settings");
 	Check(foliageaa::LoadedSettings().mode == Mode::Nvidia, "settings kept for the message");
 }
@@ -179,13 +179,16 @@ void TestMessageDevice() {
 	fake.iniSettings.threshold = 0.3f;
 	fake.iniSettings.steepness = 9.0f;
 	fake.iniSettings.dumpShaders = true;
+	fake.iniSettings.coverage = true;
+	fake.iniSettings.leafMethod = foliageaa::LeafMethod::Coverage;
+	fake.iniSettings.passes = 2;
 	g_fake = &fake;
 	foliageaa::ResetForTest();
 	foliageaa::Load(kGame, kFakeHost);
 	foliageaa::OnMessage(foliageaa::kMessageGameInitialized, kFakeHost);
 	Check(fake.setups == 1 && fake.setupDevice == &fake && fake.setupSettings.mode == Mode::Amd &&
 	          !fake.setupSettings.sharpenLeaves && fake.setupSettings.threshold == 0.3f &&
-	          fake.setupSettings.steepness == 9.0f && fake.setupSettings.dumpShaders,
+	          fake.setupSettings.steepness == 9.0f && fake.setupSettings.dumpShaders && fake.setupSettings.coverage && fake.setupSettings.leafMethod == foliageaa::LeafMethod::Coverage && fake.setupSettings.passes == 2,
 	      "device: setup with the INI's settings");
 	Check(fake.Logged("Game initialized, device"), "device logged");
 	// A repeat does nothing.

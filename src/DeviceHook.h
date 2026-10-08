@@ -3,8 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-// Two entries of Oblivion's IDirect3DDevice9 method table, replaced so the
-// plugin learns each frame's BeginScene and each render-state write.
+// Entries of Oblivion's IDirect3DDevice9 method table, replaced so the plugin
+// learns each frame's BeginScene, the state the engine sets, and each draw -
+// and can draw a leaf several times.
 //
 // A table entry rather than a code patch: every COM object reaches its
 // methods through a table of pointers, so swapping one pointer needs no
@@ -31,17 +32,39 @@
 // MultiplyTransform 46, SetViewport 47, GetViewport 48, SetMaterial 49,
 // GetMaterial 50, SetLight 51, GetLight 52, LightEnable 53, GetLightEnable 54,
 // SetClipPlane 55, GetClipPlane 56, SetRenderState 57, GetRenderState 58,
-// ... SetIndices 104, GetIndices 105, CreatePixelShader 106,
-// SetPixelShader 107, GetPixelShader 108.
-// DeviceHookTest checks every hooked slot against a real device.
+// CreateStateBlock 59, BeginStateBlock 60, EndStateBlock 61, SetClipStatus 62,
+// GetClipStatus 63, GetTexture 64, SetTexture 65, GetTextureStageState 66,
+// SetTextureStageState 67, GetSamplerState 68, SetSamplerState 69,
+// ValidateDevice 70, SetPaletteEntries 71, GetPaletteEntries 72,
+// SetCurrentTexturePalette 73, GetCurrentTexturePalette 74, SetScissorRect 75,
+// GetScissorRect 76, SetSoftwareVertexProcessing 77,
+// GetSoftwareVertexProcessing 78, SetNPatchMode 79, GetNPatchMode 80,
+// DrawPrimitive 81, DrawIndexedPrimitive 82, DrawPrimitiveUP 83,
+// DrawIndexedPrimitiveUP 84, ProcessVertices 85, CreateVertexDeclaration 86,
+// SetVertexDeclaration 87, GetVertexDeclaration 88, SetFVF 89, GetFVF 90,
+// CreateVertexShader 91, SetVertexShader 92, GetVertexShader 93,
+// SetVertexShaderConstantF 94, GetVertexShaderConstantF 95, ...I 96, 97,
+// ...B 98, 99, SetStreamSource 100, GetStreamSource 101,
+// SetStreamSourceFreq 102, GetStreamSourceFreq 103, SetIndices 104,
+// GetIndices 105, CreatePixelShader 106, SetPixelShader 107,
+// GetPixelShader 108. DeviceHookTest checks every hooked slot against a
+// real device.
 
 namespace foliageaa {
 
+constexpr uint32_t kSlotSetRenderTarget = 37;
 constexpr uint32_t kSlotBeginScene = 41;
+constexpr uint32_t kSlotSetViewport = 47;
 constexpr uint32_t kSlotSetRenderState = 57;
+constexpr uint32_t kSlotDrawPrimitive = 81;
+constexpr uint32_t kSlotDrawIndexedPrimitive = 82;
+constexpr uint32_t kSlotCreateVertexShader = 91;
+constexpr uint32_t kSlotSetVertexShader = 92;
+constexpr uint32_t kSlotSetVertexShaderConstantF = 94;
 constexpr uint32_t kSlotCreatePixelShader = 106;
 constexpr uint32_t kSlotSetPixelShader = 107;
 constexpr uint32_t kSlotLast = kSlotSetPixelShader;
+constexpr int kHookedSlots = 11;
 
 // Called after the original BeginScene returned success.
 using BeginSceneCallback = void (*)(void* device);
@@ -50,23 +73,44 @@ using RenderStateCallback = void (*)(void* device, uint32_t state, uint32_t valu
 // Called before the original SetPixelShader, with the shader the engine
 // asked for; returns the shader to set instead (the same one to leave it).
 using PixelShaderFilter = void* (*)(void* device, void* shader);
-// Called after a successful original CreatePixelShader, with the new object.
-using PixelShaderCreated = void (*)(void* device, void* shader);
+// Called after a successful original Create*Shader, with the new object.
+using ShaderCreated = void (*)(void* device, void* shader);
+// Called after the original SetVertexShader, with what was set (may be null).
+using VertexShaderCallback = void (*)(void* device, void* shader);
+// Called after the original SetVertexShaderConstantF, with its arguments.
+using VertexConstantsCallback = void (*)(void* device, uint32_t startRegister, const float* data, uint32_t count);
+// Called after the original SetViewport, with the D3DVIEWPORT9 it was given.
+using ViewportCallback = void (*)(void* device, const void* viewport);
+// Called after a successful original SetRenderTarget, with index and surface
+// (null when the target was cleared).
+using RenderTargetCallback = void (*)(void* device, uint32_t index, void* surface);
+// Called instead of the original DrawPrimitive / DrawIndexedPrimitive. The
+// filter calls issue(context) to perform the original call with the
+// original arguments, as often as it likes, and returns the HRESULT to hand
+// back to the engine.
+using DrawIssue = long (*)(void* context);
+using DrawFilter = long (*)(void* device, DrawIssue issue, void* context);
 
 struct HookCallbacks {
 	BeginSceneCallback onBeginScene;
 	RenderStateCallback onRenderState;
 	PixelShaderFilter filterPixelShader;
-	PixelShaderCreated onPixelShaderCreated;
+	ShaderCreated onPixelShaderCreated;
+	VertexShaderCallback onVertexShader;
+	ShaderCreated onVertexShaderCreated;
+	VertexConstantsCallback onVertexConstants;
+	ViewportCallback onViewport;
+	RenderTargetCallback onRenderTarget;
+	DrawFilter filterDraw;
 };
 
 // Whether a pointer about to be treated as a method table looks like one at
 // the given depth: readable, and every entry a plausible code address.
 bool LooksLikeVtable(void* const* vtable, uint32_t entries);
 
-// Replaces the four entries. False, with a reason in error, if hooks are already
-// installed (installing twice would chain a hook onto itself), the device or
-// its table cannot be read, or the table cannot be made writable.
+// Replaces the hooked entries. False, with a reason in error, if hooks are
+// already installed (installing twice would chain a hook onto itself), the
+// device or its table cannot be read, or the table cannot be made writable.
 bool InstallDeviceHooks(void* device, const HookCallbacks& callbacks, char* error, size_t errorLength);
 
 // Puts the original pointers back. Safe when nothing is installed.
@@ -74,8 +118,10 @@ void RemoveDeviceHooks();
 
 bool AreDeviceHooksInstalled();
 
-// SetRenderState through the original entry, for use inside the callbacks:
-// going through the table again would re-enter the hook.
+// Through the original entries, for use inside the callbacks: going through
+// the table again would re-enter the hooks, and the shadow must not take the
+// plugin's own writes for the engine's.
 long SetRenderStateDirect(void* device, uint32_t state, uint32_t value);
+long SetVertexShaderConstantFDirect(void* device, uint32_t startRegister, const float* data, uint32_t count);
 
 }  // namespace foliageaa

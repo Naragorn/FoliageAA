@@ -7,10 +7,11 @@
 
 // What happens once Oblivion's device exists: read the adapter's vendor, probe
 // the 'ATOC' format, look at the back buffer's sample count, pick the back
-// door and install the hooks that apply it - and, with the leaf sharpening
-// on, substitute the sharpened leaf shaders whenever the engine sets one
-// (ShaderPatch.h says why). Everything decided here goes through Coverage
-// and ShaderPatch; this file only asks the device and acts on the answers.
+// door and install the hooks that apply it; keep a shadow of the state the
+// engine sets (Shadow.h); and treat the leaf draws by the chosen method -
+// supersampling passes (Supersample.h) or the sharpened shader under
+// coverage (ShaderPatch.h). Everything decided here goes through those pure
+// modules; this file only asks the device and acts on the answers.
 
 namespace foliageaa {
 
@@ -18,6 +19,14 @@ using LogFn = void (*)(const char* format, ...);
 
 struct Options {
 	Mode mode = Mode::Auto;
+	// [Coverage] Enable: alpha-to-coverage for every alpha-tested draw
+	// (grass, hair, fences, and the leaves under the coverage method). Off
+	// by default: dithered on NVIDIA's Vulkan driver, and in a headset that
+	// glittered on hair up close (2026-10-08).
+	bool coverage = false;
+	LeafMethod leafMethod = LeafMethod::Supersample;
+	int passes = 8;  // supersampling passes asked for (1..8)
+	// Coverage method only:
 	bool sharpenLeaves = true;
 	// Below 0: the threshold follows the engine's D3DRS_ALPHAREF at each
 	// leaf draw. Otherwise this fixed value on the 0..1 alpha scale.
@@ -31,6 +40,7 @@ struct Options {
 
 struct SetupResult {
 	bool deviceAccepted = false;  // the pointer answered QueryInterface as an IDirect3DDevice9
+	uint32_t behaviorFlags = 0;
 	uint32_t vendorId = 0;
 	Vendor vendor = Vendor::Other;
 	bool atocFormatSupported = false;
@@ -38,7 +48,8 @@ struct SetupResult {
 	uint32_t multiSampleQuality = 0;
 	Hack hack = Hack::None;
 	bool hooksInstalled = false;
-	bool sharpening = false;  // leaf shaders will be substituted
+	bool sharpening = false;     // leaf shaders will be substituted (coverage method)
+	bool supersampling = false;  // leaf draws will be issued in passes
 };
 
 // Runs the setup on a device pointer taken from the engine. Logs every step

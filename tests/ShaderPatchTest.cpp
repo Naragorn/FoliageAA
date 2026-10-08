@@ -125,19 +125,54 @@ void TestBuildRefusals() {
 void TestCache() {
 	ShaderCache cache;
 	int a = 0, b = 0, r = 0;
-	void* replacement = &r;
-	Check(!cache.Lookup(&a, &replacement) && replacement == &r, "miss leaves the out untouched");
-	cache.Remember(&a, &r);
-	cache.Remember(&b, nullptr);
+	ShaderEntry entry;
+	entry.kind = 7;
+	entry.replacement = &r;
+	Check(!cache.Lookup(&a, &entry) && entry.kind == 7 && entry.replacement == &r, "miss leaves the out untouched");
+	cache.Remember(&a, ShaderEntry{1, &r});
+	cache.Remember(&b, ShaderEntry{2, nullptr});
 	Check(cache.Size() == 2, "two entries");
-	Check(cache.Lookup(&a, &replacement) && replacement == &r, "hit with replacement");
-	Check(cache.Lookup(&b, &replacement) && replacement == nullptr, "hit with pass-through");
+	Check(cache.Lookup(&a, &entry) && entry.kind == 1 && entry.replacement == &r, "hit with kind and replacement");
+	Check(cache.Lookup(&b, &entry) && entry.kind == 2 && entry.replacement == nullptr, "hit with kind and pass-through");
 	cache.Forget(&a);
-	Check(!cache.Lookup(&a, &replacement) && cache.Size() == 1, "forgotten");
+	Check(!cache.Lookup(&a, &entry) && cache.Size() == 1, "forgotten");
 	cache.Forget(&a);
 	Check(cache.Size() == 1, "forgetting twice is harmless");
-	cache.Remember(&b, &r);
-	Check(cache.Lookup(&b, &replacement) && replacement == &r, "remember overwrites");
+	cache.Remember(&b, ShaderEntry{3, &r});
+	Check(cache.Lookup(&b, &entry) && entry.kind == 3 && entry.replacement == &r, "remember overwrites");
+}
+
+void TestIdentifyVertexShaders() {
+	struct Known {
+		const uint8_t* bytes;
+		size_t length;
+		LeafVertexShader kind;
+	};
+	const Known known[] = {
+		{kLeafVs000_1734322A, sizeof(kLeafVs000_1734322A), LeafVertexShader::Vs000},
+		{kLeafVs000_0C737235, sizeof(kLeafVs000_0C737235), LeafVertexShader::Vs000},
+		{kLeafVs001_68B68346, sizeof(kLeafVs001_68B68346), LeafVertexShader::Vs001},
+		{kLeafVs001_5E91704D, sizeof(kLeafVs001_5E91704D), LeafVertexShader::Vs001},
+		{kLeafVs002_F39C1C4D, sizeof(kLeafVs002_F39C1C4D), LeafVertexShader::Vs002},
+		{kLeafVs002_3CC9900E, sizeof(kLeafVs002_3CC9900E), LeafVertexShader::Vs002},
+		{kLeafVs003_A87E9827, sizeof(kLeafVs003_A87E9827), LeafVertexShader::Vs003},
+		{kLeafVs003_14152999, sizeof(kLeafVs003_14152999), LeafVertexShader::Vs003},
+	};
+	for (const Known& k : known) {
+		Check(IdentifyLeafVertexShader(k.bytes, k.length) == k.kind, "vertex shader variant identified");
+		Check(IdentifyLeafVertexShader(k.bytes, k.length - 4) == LeafVertexShader::None, "truncated variant is none");
+		std::vector<uint8_t> altered(k.bytes, k.bytes + k.length);
+		altered[k.length - 8] ^= 1;
+		Check(IdentifyLeafVertexShader(altered.data(), altered.size()) == LeafVertexShader::None, "altered variant is none");
+		// Every variant is a vs_1_1 shader (0xFFFE0101).
+		Check(k.bytes[0] == 0x01 && k.bytes[1] == 0x01 && k.bytes[2] == 0xFE && k.bytes[3] == 0xFF, "vs_1_1 version token");
+	}
+	Check(IdentifyLeafVertexShader(kLeaf2000, sizeof(kLeaf2000)) == LeafVertexShader::None, "a pixel shader is no vertex shader");
+	Check(IdentifyLeafVertexShader(nullptr, 0) == LeafVertexShader::None, "null is none");
+	Check(std::strcmp(LeafVertexShaderName(LeafVertexShader::Vs000), "STLEAF000") == 0 &&
+	          std::strcmp(LeafVertexShaderName(LeafVertexShader::Vs003), "STLEAF003") == 0 &&
+	          std::strcmp(LeafVertexShaderName(LeafVertexShader::None), "none") == 0,
+	      "vertex shader names");
 }
 
 }  // namespace
@@ -149,6 +184,7 @@ int main() {
 	TestBuild(kLeaf2001, sizeof(kLeaf2001), "STLEAF2001 builds");
 	TestBuildRefusals();
 	TestCache();
+	TestIdentifyVertexShaders();
 	std::printf(g_failures == 0 ? "ShaderPatchTest: all passed\n" : "ShaderPatchTest: %d failed\n", g_failures);
 	return g_failures == 0 ? 0 : 1;
 }

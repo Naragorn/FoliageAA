@@ -18,9 +18,13 @@ target_include_directories(coverage PUBLIC src)
 add_library(shader_patch STATIC src/ShaderPatch.cpp)
 target_include_directories(shader_patch PUBLIC src)
 
+add_library(supersample STATIC src/Shadow.cpp src/Supersample.cpp)
+target_include_directories(supersample PUBLIC src)
+target_link_libraries(supersample PUBLIC coverage shader_patch)
+
 add_library(device_hook STATIC src/DeviceHook.cpp src/Setup.cpp)
 target_include_directories(device_hook PUBLIC src)
-target_link_libraries(device_hook PUBLIC coverage shader_patch)
+target_link_libraries(device_hook PUBLIC coverage shader_patch supersample)
 # No d3d9.lib: the plugin reaches the device only through its method table, so
 # it never pulls a second d3d9.dll into the game.
 
@@ -40,6 +44,10 @@ add_test(NAME CoverageTest COMMAND CoverageTest)
 add_executable(ShaderPatchTest tests/ShaderPatchTest.cpp)
 target_link_libraries(ShaderPatchTest PRIVATE shader_patch)
 add_test(NAME ShaderPatchTest COMMAND ShaderPatchTest)
+
+add_executable(SupersampleTest tests/SupersampleTest.cpp)
+target_link_libraries(SupersampleTest PRIVATE supersample)
+add_test(NAME SupersampleTest COMMAND SupersampleTest)
 
 add_executable(PluginEntryTest tests/PluginEntryTest.cpp)
 target_link_libraries(PluginEntryTest PRIVATE plugin_entry)

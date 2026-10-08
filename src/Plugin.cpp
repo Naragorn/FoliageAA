@@ -95,6 +95,20 @@ bool ReadSettings(foliageaa::Settings* settings) {
 		Log("Mode=%s in the INI is not auto, nvidia, amd or off - using auto", mode);
 		settings->mode = foliageaa::Mode::Auto;
 	}
+	settings->coverage = GetPrivateProfileIntA("Coverage", "Enable", 0, path) != 0;
+	char method[32] = {};
+	GetPrivateProfileStringA("Leaves", "Method", "supersample", method, sizeof(method), path);
+	if (!foliageaa::ParseLeafMethod(method, &settings->leafMethod)) {
+		Log("Method=%s in the INI is not supersample or coverage - using supersample", method);
+		settings->leafMethod = foliageaa::LeafMethod::Supersample;
+	}
+	settings->passes = GetPrivateProfileIntA("Leaves", "Passes", 8, path);
+	if (settings->passes < 1) {
+		settings->passes = 1;
+	}
+	if (settings->passes > 8) {
+		settings->passes = 8;
+	}
 	settings->sharpenLeaves = GetPrivateProfileIntA("Leaves", "SharpenLeaves", 1, path) != 0;
 	// Threshold: "engine" (or anything that is not a number) follows the
 	// engine's alpha reference; a number fixes it.
@@ -107,8 +121,10 @@ bool ReadSettings(foliageaa::Settings* settings) {
 	} else {
 		std::snprintf(threshold, sizeof(threshold), "%.2f", settings->threshold);
 	}
-	Log("Settings from %s: Enable=%d Mode=%s SharpenLeaves=%d Threshold=%s Steepness=%.1f DumpShaders=%d", path,
-	    settings->enable ? 1 : 0, foliageaa::ModeName(settings->mode), settings->sharpenLeaves ? 1 : 0, threshold,
+	Log("Settings from %s: Enable=%d Mode=%s Coverage=%d Leaves=%s Passes=%d SharpenLeaves=%d Threshold=%s "
+	    "Steepness=%.1f DumpShaders=%d",
+	    path, settings->enable ? 1 : 0, foliageaa::ModeName(settings->mode), settings->coverage ? 1 : 0,
+	    foliageaa::LeafMethodName(settings->leafMethod), settings->passes, settings->sharpenLeaves ? 1 : 0, threshold,
 	    settings->steepness, settings->dumpShaders ? 1 : 0);
 	return true;
 }
@@ -187,6 +203,9 @@ void* FindDevice() {
 void SetupDeviceSideEffect(void* device, const foliageaa::Settings& settings) {
 	foliageaa::Options options;
 	options.mode = settings.mode;
+	options.coverage = settings.coverage;
+	options.leafMethod = settings.leafMethod;
+	options.passes = settings.passes;
 	options.sharpenLeaves = settings.sharpenLeaves;
 	options.threshold = settings.threshold;
 	options.steepness = settings.steepness;

@@ -120,6 +120,55 @@ int AlphaTestWrites(Hack hack, uint32_t alphaTestEnabled, StateWrite out[2]) {
 	return 0;
 }
 
+int SuspendCoverageWrites(Hack hack, StateWrite out[2]) {
+	switch (hack) {
+		case Hack::NvidiaAtoc:
+			out[0] = StateWrite{kRsAdaptiveTessY, kFourCCNone};
+			return 1;
+		case Hack::AmdA2M:
+			out[0] = StateWrite{kRsPointSize, kFourCCA2M0};
+			return 1;
+		case Hack::None:
+			return 0;
+	}
+	return 0;
+}
+
+int ResumeCoverageWrites(Hack hack, uint32_t alphaTestEnabled, StateWrite out[2]) {
+	switch (hack) {
+		case Hack::NvidiaAtoc:
+			out[0] = StateWrite{kRsAdaptiveTessY, kFourCCAtoc};
+			return 1;
+		case Hack::AmdA2M:
+			return AlphaTestWrites(hack, alphaTestEnabled, out);
+		case Hack::None:
+			return 0;
+	}
+	return 0;
+}
+
+bool ParseLeafMethod(const char* text, LeafMethod* out) {
+	if (text == nullptr) {
+		return false;
+	}
+	if (EqualsIgnoringCase(text, "supersample")) {
+		*out = LeafMethod::Supersample;
+	} else if (EqualsIgnoringCase(text, "coverage")) {
+		*out = LeafMethod::Coverage;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+const char* LeafMethodName(LeafMethod method) {
+	switch (method) {
+		case LeafMethod::Supersample: return "supersample";
+		case LeafMethod::Coverage: return "coverage";
+	}
+	return "supersample";
+}
+
 bool TargetIsMultisampled(uint32_t multiSampleType, uint32_t multiSampleQuality) {
 	// D3DMULTISAMPLE_NONE = 0, D3DMULTISAMPLE_NONMASKABLE = 1, then the
 	// sample counts 2..16 (d3d9types.h).

@@ -44,8 +44,13 @@ constexpr uint32_t kMessageGameInitialized = 11;
 struct Settings {
 	bool enable = true;
 	Mode mode = Mode::Auto;
-	// [Leaves] in the INI; see ShaderPatch.h for what they do. threshold
-	// below 0 means "follow the engine's alpha reference".
+	// [Coverage] Enable: alpha-to-coverage for the alpha-tested draws.
+	bool coverage = false;
+	// [Leaves]: Method and Passes (Supersample.h), and for the coverage
+	// method the sharpening (ShaderPatch.h); threshold below 0 means
+	// "follow the engine's alpha reference".
+	LeafMethod leafMethod = LeafMethod::Supersample;
+	int passes = 8;
 	bool sharpenLeaves = true;
 	float threshold = -1.0f;
 	float steepness = 4.0f;

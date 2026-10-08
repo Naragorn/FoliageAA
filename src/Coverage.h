@@ -87,9 +87,24 @@ int BeginSceneWrites(Hack hack, StateWrite out[2]);
 // particles and overlays would get coverage too. Returns the count.
 int AlphaTestWrites(Hack hack, uint32_t alphaTestEnabled, StateWrite out[2]);
 
+// The render states that take coverage off for a stretch of draws that use
+// the plain alpha test instead (the supersampling passes), and back on after
+// them - the AMD back door being tied to the alpha test state at that
+// moment. Returns the count.
+int SuspendCoverageWrites(Hack hack, StateWrite out[2]);
+int ResumeCoverageWrites(Hack hack, uint32_t alphaTestEnabled, StateWrite out[2]);
+
 // Whether a render target with this D3DMULTISAMPLE_TYPE and quality is one
 // alpha-to-coverage can act on: two or more samples, or NONMASKABLE (1) with
 // a quality above 0 - DXVK's rule, and the plain meaning of the enum.
 bool TargetIsMultisampled(uint32_t multiSampleType, uint32_t multiSampleQuality);
+
+// How the leaves are antialiased: the supersampling passes (Supersample.h)
+// or coverage with the sharpened shader (ShaderPatch.h).
+enum class LeafMethod { Supersample, Coverage };
+// Case-insensitive "supersample" or "coverage"; false and *out untouched for
+// anything else.
+bool ParseLeafMethod(const char* text, LeafMethod* out);
+const char* LeafMethodName(LeafMethod method);
 
 }  // namespace foliageaa
