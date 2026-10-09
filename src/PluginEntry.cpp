@@ -50,10 +50,10 @@ bool Load(const ExtenderInterfaceHead& xse, const Host& host) {
 		std::snprintf(threshold, sizeof(threshold), "%.2f", g_settings.threshold);
 	}
 	host.log("Waiting for the game to initialize (Mode=%s, Coverage=%d, Leaves=%s, Passes=%d, SharpenLeaves=%d, "
-	         "Threshold=%s, Steepness=%.1f, DumpShaders=%d)",
+	         "Threshold=%s, Steepness=%.1f, DumpShaders=%d, ToggleKey=0x%02X)",
 	         ModeName(g_settings.mode), g_settings.coverage ? 1 : 0, LeafMethodName(g_settings.leafMethod),
 	         g_settings.passes, g_settings.sharpenLeaves ? 1 : 0, threshold, g_settings.steepness,
-	         g_settings.dumpShaders ? 1 : 0);
+	         g_settings.dumpShaders ? 1 : 0, static_cast<unsigned>(g_settings.toggleKey));
 	return true;
 }
 

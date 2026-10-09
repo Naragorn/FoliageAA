@@ -38,15 +38,38 @@ int g_dumpCount = 0;
 bool g_announcedSupersample = false;
 int g_unknownVertexShaderLogs = 0;
 
+// The toggle key: off means the leaves and coverage as the game draws them.
+bool g_active = true;
+KeyEdge g_toggleEdge;
+bool RealKeyDown(int virtualKey) {
+	return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+}
+KeyReader g_keyDown = &RealKeyDown;
+
 void ApplyWrites(void* device, const StateWrite* writes, int count) {
 	for (int i = 0; i < count; ++i) {
 		SetRenderStateDirect(device, writes[i].state, writes[i].value);
 	}
 }
 
-void OnBeginScene(void* device) {
+void PollToggle(void* device) {
+	if (g_options.toggleKey == 0 || !g_toggleEdge.Pressed(g_keyDown(g_options.toggleKey))) {
+		return;
+	}
+	g_active = !g_active;
 	StateWrite writes[2];
-	const int count = BeginSceneWrites(g_hack, writes);
+	const int count = g_active ? ResumeCoverageWrites(g_hack, g_shadow.alphaTestEnable, writes)
+	                           : SuspendCoverageWrites(g_hack, writes);
+	ApplyWrites(device, writes, count);
+	if (g_log != nullptr) {
+		g_log("Toggle key: FoliageAA %s", g_active ? "ON" : "OFF - leaves and coverage as the game draws them");
+	}
+}
+
+void OnBeginScene(void* device) {
+	PollToggle(device);
+	StateWrite writes[2];
+	const int count = g_active ? BeginSceneWrites(g_hack, writes) : 0;
 	ApplyWrites(device, writes, count);
 	if (!g_announcedLive) {
 		g_announcedLive = true;
@@ -68,6 +91,9 @@ void WriteSharpenConstants(IDirect3DDevice9* device) {
 void OnRenderState(void* device, uint32_t state, uint32_t value) {
 	ShadowRenderState(&g_shadow, state, value);
 	if (state == kRsAlphaTestEnable) {
+		if (!g_active) {
+			return;
+		}
 		StateWrite writes[2];
 		const int count = AlphaTestWrites(g_hack, value, writes);
 		ApplyWrites(device, writes, count);
@@ -168,7 +194,7 @@ void* FilterPixelShader(void* rawDevice, void* rawShader) {
 		g_pixelShaders.Remember(rawShader, entry);
 	}
 	g_shadow.pixelShader = static_cast<LeafShader>(entry.kind);
-	if (entry.replacement == nullptr) {
+	if (entry.replacement == nullptr || !g_active) {
 		g_leafCopyBound = false;
 		return rawShader;
 	}
@@ -241,7 +267,7 @@ void OnRenderTarget(void*, uint32_t index, void* surface) {
 }
 
 long FilterDraw(void* rawDevice, DrawIssue issue, void* context) {
-	if (!g_supersample || g_shadow.pixelShader == LeafShader::None) {
+	if (!g_supersample || !g_active || g_shadow.pixelShader == LeafShader::None) {
 		return issue(context);
 	}
 	LeafDrawPlan plan;
@@ -415,6 +441,8 @@ SetupResult SetupDevice(void* rawDevice, const Options& options, LogFn log) {
 	g_dumpCount = 0;
 	g_announcedSupersample = false;
 	g_unknownVertexShaderLogs = 0;
+	g_active = true;
+	g_toggleEdge = KeyEdge();
 	g_pixelShaders = ShaderCache();
 	g_vertexShaders = ShaderCache();
 	ReadShadowFromDevice(device);
@@ -457,6 +485,9 @@ SetupResult SetupDevice(void* rawDevice, const Options& options, LogFn log) {
 	} else {
 		log("Leaves: coverage asked for but no coverage is active - leaves drawn plainly");
 	}
+	if (options.toggleKey != 0) {
+		log("Toggle key 0x%02X switches FoliageAA off and on in the game", options.toggleKey);
+	}
 	if (!options.dumpDirectory.empty()) {
 		CreateDirectoryA(options.dumpDirectory.c_str(), nullptr);
 		log("Shader dump on: every pixel shader the engine sets goes to %s once", options.dumpDirectory.c_str());
@@ -483,6 +514,12 @@ void TeardownDevice() {
 	g_dumpCount = 0;
 	g_announcedSupersample = false;
 	g_unknownVertexShaderLogs = 0;
+	g_active = true;
+	g_toggleEdge = KeyEdge();
+}
+
+void SetKeyReaderForTest(KeyReader reader) {
+	g_keyDown = reader != nullptr ? reader : &RealKeyDown;
 }
 
 }  // namespace foliageaa

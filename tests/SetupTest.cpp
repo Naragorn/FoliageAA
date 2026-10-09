@@ -122,6 +122,13 @@ HRESULT __stdcall RecordIndexedDraw(void* self, uint32_t, int, uint32_t, uint32_
 	return D3D_OK;
 }
 
+bool g_keyIsDown = false;
+int g_keyReads = 0;
+bool FakeKey(int virtualKey) {
+	++g_keyReads;
+	return virtualKey == 0x7A && g_keyIsDown;
+}
+
 void WriteSlot(void** vtable, uint32_t slot, void* value) {
 	DWORD previous = 0;
 	VirtualProtect(vtable + slot, sizeof(void*), PAGE_READWRITE, &previous);
@@ -584,6 +591,60 @@ void TestSupersampling(TestDevice& test) {
 	test.device->SetPixelShader(nullptr);
 	test.device->SetVertexShader(nullptr);
 	TeardownDevice();
+
+	// The toggle key: off draws the leaves once and takes coverage away,
+	// on brings both back; a held key flips once; no key is never read.
+	g_keyIsDown = false;
+	g_keyReads = 0;
+	SetKeyReaderForTest(&FakeKey);
+	Options toggled = Opts(Mode::Nvidia, LeafMethod::Supersample, 8, true);
+	toggled.toggleKey = 0x7A;
+	g_lines.clear();
+	result = SetupDevice(test.device, toggled, &Log);
+	Check(result.supersampling && Logged("Toggle key 0x7A switches FoliageAA off and on"), "toggle key announced");
+	test.device->SetVertexShaderConstantF(0, rows, 4);
+	test.device->SetVertexShader(leafVs);
+	test.device->SetPixelShader(leafPs);
+	test.device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	test.device->BeginScene();
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 8 && g_keyReads == 1, "on: eight passes, the key read at BeginScene");
+	test.device->EndScene();
+	g_keyIsDown = true;
+	test.device->BeginScene();
+	test.device->GetRenderState(D3DRS_ADAPTIVETESS_Y, &readBack);
+	Check(Logged("Toggle key: FoliageAA OFF") && readBack == 0, "pressed: off, coverage taken away");
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 1, "off: one plain draw");
+	test.device->EndScene();
+	test.device->BeginScene();  // still held
+	test.device->GetRenderState(D3DRS_ADAPTIVETESS_Y, &readBack);
+	Check(Count("Toggle key: FoliageAA") == 1 && readBack == 0, "held: no second flip, no ATOC written");
+	test.device->EndScene();
+	g_keyIsDown = false;
+	test.device->BeginScene();
+	test.device->EndScene();
+	g_keyIsDown = true;
+	test.device->BeginScene();
+	test.device->GetRenderState(D3DRS_ADAPTIVETESS_Y, &readBack);
+	Check(Logged("Toggle key: FoliageAA ON") && readBack == kFourCCAtoc, "pressed again: on, coverage back");
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 8, "on again: eight passes");
+	test.device->EndScene();
+	test.device->SetPixelShader(nullptr);
+	test.device->SetVertexShader(nullptr);
+	TeardownDevice();
+	g_keyReads = 0;
+	result = SetupDevice(test.device, Opts(Mode::Nvidia, LeafMethod::Supersample, 8, true), &Log);
+	test.device->BeginScene();
+	test.device->EndScene();
+	Check(g_keyReads == 0, "no toggle key: the key is never read");
+	TeardownDevice();
+	SetKeyReaderForTest(nullptr);
+	g_keyIsDown = false;
 
 	// The recorder out again.
 	WriteSlot(vtable, kSlotDrawPrimitive, originalDraw);

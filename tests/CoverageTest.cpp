@@ -102,6 +102,15 @@ void TestWrites() {
 	Check(AlphaTestWrites(Hack::None, 1, writes) == 0, "none: nothing on alpha test");
 }
 
+void TestKeyEdge() {
+	KeyEdge edge;
+	Check(!edge.Pressed(false), "up: no press");
+	Check(edge.Pressed(true), "first down: a press");
+	Check(!edge.Pressed(true), "held: no second press");
+	Check(!edge.Pressed(false), "released: no press");
+	Check(edge.Pressed(true), "down again: a press");
+}
+
 void TestMultisampled() {
 	Check(!TargetIsMultisampled(0, 0), "NONE");
 	Check(!TargetIsMultisampled(1, 0), "NONMASKABLE quality 0");
@@ -120,6 +129,7 @@ int main() {
 	TestChooseHack();
 	TestWrites();
 	TestMultisampled();
+	TestKeyEdge();
 	std::printf(g_failures == 0 ? "CoverageTest: all passed\n" : "CoverageTest: %d failed\n", g_failures);
 	return g_failures == 0 ? 0 : 1;
 }

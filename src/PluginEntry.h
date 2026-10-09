@@ -56,6 +56,9 @@ struct Settings {
 	float steepness = 4.0f;
 	// [Diagnostics] DumpShaders.
 	bool dumpShaders = false;
+	// [Diagnostics] ToggleKey: a virtual-key code that switches the plugin
+	// off and on in the game, 0 for none.
+	int toggleKey = 0;
 };
 
 struct Host {

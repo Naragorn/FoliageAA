@@ -145,7 +145,7 @@ void TestLoadOk() {
 	foliageaa::ResetForTest();
 	Check(foliageaa::Load(kGame, kFakeHost), "Load true");
 	Check(fake.registrations == 1 &&
-	          fake.Logged("Waiting for the game to initialize (Mode=nvidia, Coverage=0, Leaves=supersample, Passes=8, SharpenLeaves=1, Threshold=engine, Steepness=4.0, DumpShaders=0)"),
+	          fake.Logged("Waiting for the game to initialize (Mode=nvidia, Coverage=0, Leaves=supersample, Passes=8, SharpenLeaves=1, Threshold=engine, Steepness=4.0, DumpShaders=0, ToggleKey=0x00)"),
 	      "registered with the INI's settings");
 	Check(foliageaa::LoadedSettings().mode == Mode::Nvidia, "settings kept for the message");
 }

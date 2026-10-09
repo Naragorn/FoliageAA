@@ -99,6 +99,18 @@ int ResumeCoverageWrites(Hack hack, uint32_t alphaTestEnabled, StateWrite out[2]
 // a quality above 0 - DXVK's rule, and the plain meaning of the enum.
 bool TargetIsMultisampled(uint32_t multiSampleType, uint32_t multiSampleQuality);
 
+// A key's press, from its down/up state polled once per call: true on the
+// first call that sees it down after it was up, so a held key flips
+// nothing twice.
+struct KeyEdge {
+	bool wasDown = false;
+	bool Pressed(bool down) {
+		const bool pressed = down && !wasDown;
+		wasDown = down;
+		return pressed;
+	}
+};
+
 // How the leaves are antialiased: the supersampling passes (Supersample.h)
 // or coverage with the sharpened shader (ShaderPatch.h).
 enum class LeafMethod { Supersample, Coverage };

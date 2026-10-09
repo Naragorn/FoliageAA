@@ -36,7 +36,15 @@ struct Options {
 	// directory once, with the render states of that first moment in the
 	// log - the way to learn which shader draws what.
 	std::string dumpDirectory;
+	// Non-zero: a Windows virtual-key code that switches the plugin's work
+	// off and on while the game runs, polled at each BeginScene - for
+	// comparing in the headset. 0: no key.
+	int toggleKey = 0;
 };
+
+// The key state the toggle reads; GetAsyncKeyState unless a test swaps it.
+using KeyReader = bool (*)(int virtualKey);
+void SetKeyReaderForTest(KeyReader reader);
 
 struct SetupResult {
 	bool deviceAccepted = false;  // the pointer answered QueryInterface as an IDirect3DDevice9
