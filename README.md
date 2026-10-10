@@ -5,6 +5,10 @@ plugin supersamples them: the game's own leaf edges, antialiased for real,
 the way "Transparency Supersampling" in the graphics driver used to do it.
 Works flat and in VR.
 
+**Like it? Buy me a coffee on [Ko-fi](https://ko-fi.com/somadb).** (somadb is a
+different project I work on, but I confirm this Ko-fi link goes to me, the one
+who made FoliageAA.)
+
 ## Install
 
 Needs [xOBSE](https://github.com/llde/xOBSE) and antialiasing on in the
