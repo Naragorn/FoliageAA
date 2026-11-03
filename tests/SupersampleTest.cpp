@@ -202,6 +202,70 @@ void TestPlanLeafDraw() {
 	Check(!PlanLeafDraw(shadow, 8, &plan), "odd sample count");
 }
 
+// The shadow's grass rows (c9..c12) and the grass draw's gates: no leaf
+// shader and no alpha test are asked for, the grass shader cuts its alpha
+// itself.
+void TestGrass() {
+	DeviceShadow shadow;
+	Check(!shadow.grassVertexShader && shadow.alphaBlendEnable == 0 && shadow.zWriteEnable == 1, "grass defaults");
+	ShadowRenderState(&shadow, kRsAlphaBlendEnable, 1);
+	ShadowRenderState(&shadow, kRsZWriteEnable, 0);
+	Check(shadow.alphaBlendEnable == 1 && shadow.zWriteEnable == 0, "alpha blend and depth write followed");
+
+	const float rows[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+	ShadowVertexConstants(&shadow, kGrassClipBase, rows, 4);
+	Check(std::memcmp(shadow.grassRows, rows, sizeof(rows)) == 0, "c9..c12 taken whole");
+	Check(shadow.clipRows[0] == 0, "c0..c3 untouched by a write at c9");
+	const float row11[4] = {-1, -2, -3, -4};
+	ShadowVertexConstants(&shadow, 11, row11, 1);
+	Check(shadow.grassRows[8] == -1 && shadow.grassRows[11] == -4 && shadow.grassRows[7] == 8 && shadow.grassRows[12] == 13,
+	      "a single grass row replaced");
+	const float across[12] = {20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 22, 22};
+	ShadowVertexConstants(&shadow, 7, across, 3);
+	Check(shadow.grassRows[0] == 22 && shadow.grassRows[4] == 5, "a write over c7..c9 takes c9 only");
+	ShadowVertexConstants(&shadow, 12, across, 3);
+	Check(shadow.grassRows[12] == 20 && shadow.grassRows[8] == -1, "a write over c12..c14 takes c12 only");
+	ShadowVertexConstants(&shadow, 13, across, 2);
+	Check(shadow.grassRows[12] == 20, "registers past c12 ignored");
+	const float both[20] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
+	ShadowVertexConstants(&shadow, 0, both, 5);
+	Check(shadow.clipRows[12] == 3 && shadow.grassRows[0] == 22, "c0..c4 taken into the clip rows, not the grass rows");
+	const float wide[48] = {};
+	ShadowVertexConstants(&shadow, 0, wide, 12);
+	Check(shadow.clipRows[0] == 0 && shadow.grassRows[0] == 0 && shadow.grassRows[8] == 0, "a write over c0..c11 fills both");
+	ShadowVertexConstants(&shadow, 9, nullptr, 4);
+	Check(shadow.grassRows[0] == 0, "null data ignored");
+
+	LeafDrawPlan plan;
+	DeviceShadow ready = ReadyShadow();
+	ready.pixelShader = LeafShader::None;
+	ready.vertexShader = LeafVertexShader::None;
+	ready.alphaTestEnable = 0;
+	ready.grassVertexShader = true;
+	Check(PlanGrassDraw(ready, 8, &plan) && plan.passes == 8 && GrassDrawRefusal(ready, 8)[0] == '\0',
+	      "a grass vertex shader, no leaf shader, no alpha test: 8 passes");
+	Check(PlanGrassDraw(ready, 4, &plan) && plan.passes == 4 && plan.pass[0].mask == 0x03, "4 asked: pairs");
+	DeviceShadow off = ready;
+	off.grassVertexShader = false;
+	Check(!PlanGrassDraw(off, 8, &plan) && std::strcmp(GrassDrawRefusal(off, 8), "no grass vertex shader bound") == 0,
+	      "no grass vertex shader");
+	DeviceShadow single = ready;
+	single.targetSamples = 0;
+	Check(!PlanGrassDraw(single, 8, &plan) && std::strstr(GrassDrawRefusal(single, 8), "not multisampled") != nullptr,
+	      "single-sample target");
+	DeviceShadow noViewport = ready;
+	noViewport.viewportHeight = 0;
+	Check(!PlanGrassDraw(noViewport, 8, &plan) && std::strcmp(GrassDrawRefusal(noViewport, 8), "no viewport") == 0,
+	      "no viewport");
+	Check(!PlanGrassDraw(ready, 1, &plan) && std::strstr(GrassDrawRefusal(ready, 1), "fewer than two passes") != nullptr,
+	      "one pass asked");
+	DeviceShadow odd = ready;
+	odd.targetSamples = 6;
+	Check(!PlanGrassDraw(odd, 8, &plan), "odd sample count");
+	// The leaf plan does not take a grass draw for a leaf draw.
+	Check(!PlanLeafDraw(ready, 8, &plan), "the leaf plan refuses a draw without a leaf pixel shader");
+}
+
 void TestCoverageSuspend() {
 	StateWrite writes[2];
 	Check(SuspendCoverageWrites(Hack::NvidiaAtoc, writes) == 1 && writes[0].state == kRsAdaptiveTessY && writes[0].value == 0,
@@ -233,6 +297,7 @@ int main() {
 	TestPlanPasses();
 	TestJitter();
 	TestPlanLeafDraw();
+	TestGrass();
 	TestCoverageSuspend();
 	std::printf(g_failures == 0 ? "SupersampleTest: all passed\n" : "SupersampleTest: %d failed\n", g_failures);
 	return g_failures == 0 ? 0 : 1;

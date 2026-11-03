@@ -26,6 +26,11 @@ struct Options {
 	bool coverage = false;
 	LeafMethod leafMethod = LeafMethod::Supersample;
 	int passes = 8;  // supersampling passes asked for (1..8)
+	// [Grass] Method=supersample and Passes: the grass draws in passes as
+	// the leaves (Supersample.h, PlanGrassDraw). Off: the grass as the game
+	// draws it.
+	bool grassSupersample = true;
+	int grassPasses = 4;
 	// Coverage method only:
 	bool sharpenLeaves = true;
 	// Below 0: the threshold follows the engine's D3DRS_ALPHAREF at each
@@ -58,6 +63,7 @@ struct SetupResult {
 	bool hooksInstalled = false;
 	bool sharpening = false;     // leaf shaders will be substituted (coverage method)
 	bool supersampling = false;  // leaf draws will be issued in passes
+	bool grassSupersampling = false;  // grass draws will be issued in passes
 };
 
 // Runs the setup on a device pointer taken from the engine. Logs every step

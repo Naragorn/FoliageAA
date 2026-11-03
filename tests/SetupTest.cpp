@@ -13,6 +13,7 @@
 
 #include "Coverage.h"
 #include "DeviceHook.h"
+#include "GrassShaderFixtures.h"
 #include "LeafShaders.h"
 #include "Setup.h"
 #include "ShaderPatch.h"
@@ -72,12 +73,15 @@ int Count(const char* text) {
 
 using namespace foliageaa;
 
+// The leaf and coverage tests' options: the grass off, so that "nothing to
+// do" and the leaf passes read as before; TestGrassSupersampling turns it on.
 Options Opts(Mode mode, LeafMethod method, int passes, bool coverage) {
 	Options options;
 	options.mode = mode;
 	options.leafMethod = method;
 	options.passes = passes;
 	options.coverage = coverage;
+	options.grassSupersample = false;
 	return options;
 }
 
@@ -101,6 +105,8 @@ struct DrawRecord {
 	DWORD adaptiveTessY;
 	float c0[4];
 	float c1[4];
+	float c9[4];  // the grass rows
+	float c10[4];
 };
 std::vector<DrawRecord> g_records;
 
@@ -111,6 +117,8 @@ void Record(void* self) {
 	device->GetRenderState(D3DRS_ADAPTIVETESS_Y, &record.adaptiveTessY);
 	device->GetVertexShaderConstantF(0, record.c0, 1);
 	device->GetVertexShaderConstantF(1, record.c1, 1);
+	device->GetVertexShaderConstantF(9, record.c9, 1);
+	device->GetVertexShaderConstantF(10, record.c10, 1);
 	g_records.push_back(record);
 }
 HRESULT __stdcall RecordDraw(void* self, uint32_t, uint32_t, uint32_t) {
@@ -701,6 +709,154 @@ void TestDump(TestDevice& test) {
 	leaf2001->Release();
 }
 
+// The grass draws in passes ([Grass] Method=supersample): a draw with the
+// real GRASS2020 bound goes out once per pass with the mask of that pass and
+// c9/c10 shifted to its sample, the alpha test off or on alike; off in the
+// options it goes out once; a leaf draw beside it keeps its own passes.
+void TestGrassSupersampling(TestDevice& test) {
+	if (test.multisample != D3DMULTISAMPLE_8_SAMPLES) {
+		Check(false, "this device gave no 8-sample back buffer; the grass test needs one");
+		return;
+	}
+	IDirect3DPixelShader9* grassPs = nullptr;
+	IDirect3DVertexShader9* grassVs = nullptr;
+	IDirect3DPixelShader9* leafPs = nullptr;
+	IDirect3DVertexShader9* leafVs = nullptr;
+	test.device->CreatePixelShader(reinterpret_cast<const DWORD*>(kGrassPs2002), &grassPs);
+	test.device->CreateVertexShader(reinterpret_cast<const DWORD*>(kGrassVs2020), &grassVs);
+	test.device->CreatePixelShader(reinterpret_cast<const DWORD*>(kLeaf2000), &leafPs);
+	test.device->CreateVertexShader(reinterpret_cast<const DWORD*>(kLeafVs000_0C737235), &leafVs);
+	Check(grassPs != nullptr && grassVs != nullptr && leafPs != nullptr && leafVs != nullptr,
+	      "the runtime accepts the grass and leaf shaders");
+	if (grassPs == nullptr || grassVs == nullptr || leafPs == nullptr || leafVs == nullptr) {
+		return;
+	}
+	void** vtable = *reinterpret_cast<void***>(test.device);
+	void* const originalDraw = vtable[kSlotDrawPrimitive];
+	void* const originalIndexedDraw = vtable[kSlotDrawIndexedPrimitive];
+	WriteSlot(vtable, kSlotDrawPrimitive, reinterpret_cast<void*>(&RecordDraw));
+	WriteSlot(vtable, kSlotDrawIndexedPrimitive, reinterpret_cast<void*>(&RecordIndexedDraw));
+
+	g_lines.clear();
+	Options options = Opts(Mode::Auto, LeafMethod::Supersample, 8, false);
+	options.grassSupersample = true;
+	options.grassPasses = 4;
+	SetupResult result = SetupDevice(test.device, options, &Log);
+	Check(result.hooksInstalled && result.grassSupersampling && Logged("Grass: supersampled") && Logged("up to 4 passes"),
+	      "grass supersampling announced");
+	D3DVIEWPORT9 viewport{0, 0, 64, 64, 0.0f, 1.0f};
+	test.device->SetViewport(&viewport);
+	test.device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+	test.device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+	test.device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+	test.device->SetRenderState(D3DRS_MULTISAMPLEMASK, 0xFFFFFFFF);
+	const float leafRows[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+	const float grassRows[16] = {2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1};
+	test.device->SetVertexShaderConstantF(0, leafRows, 4);
+	test.device->SetVertexShaderConstantF(9, grassRows, 4);
+	test.device->SetVertexShader(grassVs);
+	test.device->SetPixelShader(grassPs);
+	test.device->BeginScene();
+
+	g_records.clear();
+	Check(test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1) == D3D_OK, "the grass draw returns OK");
+	Check(g_records.size() == 4, "four grass passes recorded with the alpha test off");
+	SupersamplePass planned[kMaxPasses];
+	PlanPasses(8, 4, planned);
+	for (size_t i = 0; i < g_records.size() && i < 4; ++i) {
+		float expected[8];
+		JitterClipRows(grassRows, planned[i].offsetX, planned[i].offsetY, 64, 64, expected);
+		Check(g_records[i].mask == planned[i].mask, "grass pass writes its own samples");
+		Check(std::memcmp(g_records[i].c9, expected, 4 * sizeof(float)) == 0 &&
+		          std::memcmp(g_records[i].c10, expected + 4, 4 * sizeof(float)) == 0,
+		      "grass pass evaluated at its sample's place (c9/c10 jittered)");
+		Check(std::memcmp(g_records[i].c0, leafRows, 4 * sizeof(float)) == 0, "c0 untouched by a grass pass");
+	}
+	float back[8] = {};
+	test.device->GetVertexShaderConstantF(9, back, 2);
+	DWORD readBack = 0;
+	test.device->GetRenderState(D3DRS_MULTISAMPLEMASK, &readBack);
+	Check(std::memcmp(back, grassRows, 8 * sizeof(float)) == 0 && readBack == 0xFFFFFFFF,
+	      "c9/c10 and the mask restored after the grass passes");
+	Check(Logged("First grass draw supersampled: 4 passes on a 8-sample target, viewport 64x64; the engine draws its "
+	             "grass with the alpha test off (ref ") &&
+	          Logged("), the alpha blend on, depth writes on"),
+	      "first grass draw logged with the engine's states");
+
+	// The alpha test on changes nothing for the grass.
+	test.device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	g_records.clear();
+	test.device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 1);
+	Check(g_records.size() == 4 && g_records[3].mask == 0xC0, "four passes through DrawPrimitive with the alpha test on");
+	Check(Count("First grass draw supersampled") == 1, "announced once");
+
+	// A leaf draw in the same session takes the leaf passes, c0/c1 shifted.
+	test.device->SetVertexShader(leafVs);
+	test.device->SetPixelShader(leafPs);
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 8 && std::memcmp(g_records[0].c9, grassRows, 4 * sizeof(float)) == 0,
+	      "a leaf draw beside it: eight leaf passes, c9 untouched");
+
+	// A grass vertex shader with a pixel shader that is a leaf's: the grass
+	// path, since the vertex shader names the draw.
+	test.device->SetVertexShader(grassVs);
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 4, "the grass vertex shader decides: four passes");
+
+	// No vertex shader: nothing of either.
+	test.device->SetVertexShader(nullptr);
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 1, "no vertex shader: one plain draw");
+	test.device->EndScene();
+	TeardownDevice();
+
+	// Off in the options: the grass draws once.
+	g_lines.clear();
+	options.grassSupersample = false;
+	result = SetupDevice(test.device, options, &Log);
+	Check(result.hooksInstalled && !result.grassSupersampling && Logged("Grass: off in the INI"), "grass off announced");
+	test.device->SetVertexShader(grassVs);
+	test.device->SetPixelShader(grassPs);
+	test.device->BeginScene();
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 1 && g_records[0].mask == 0xFFFFFFFF, "grass off: one plain draw");
+	test.device->EndScene();
+	TeardownDevice();
+
+	// One pass asked: announced as plain, and the draw goes out once.
+	g_lines.clear();
+	options.grassSupersample = true;
+	options.grassPasses = 1;
+	result = SetupDevice(test.device, options, &Log);
+	Check(!result.grassSupersampling && Logged("Grass: Passes=1 asks for no supersampling"), "one grass pass announced as plain");
+	test.device->BeginScene();
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 1, "one pass asked: one plain draw");
+	test.device->EndScene();
+	TeardownDevice();
+
+	// Grass alone, leaves and coverage off: still something to do.
+	g_lines.clear();
+	options.grassPasses = 4;
+	options.passes = 1;
+	result = SetupDevice(test.device, options, &Log);
+	Check(result.hooksInstalled && result.grassSupersampling && !result.supersampling,
+	      "grass supersampling alone keeps the hooks");
+	TeardownDevice();
+
+	WriteSlot(vtable, kSlotDrawPrimitive, originalDraw);
+	WriteSlot(vtable, kSlotDrawIndexedPrimitive, originalIndexedDraw);
+	grassPs->Release();
+	grassVs->Release();
+	leafPs->Release();
+	leafVs->Release();
+}
+
 }  // namespace
 
 int main() {
@@ -712,6 +868,7 @@ int main() {
 		TestCoverage(test);
 		TestSharpening(test);
 		TestSupersampling(test);
+		TestGrassSupersampling(test);
 		TestDump(test);
 		test.Destroy();
 	}

@@ -58,6 +58,25 @@ enum class LeafVertexShader { None, Vs000, Vs001, Vs002, Vs003 };
 LeafVertexShader IdentifyLeafVertexShader(const uint8_t* bytes, size_t length);
 const char* LeafVertexShaderName(LeafVertexShader shader);
 
+// The vanilla grass vertex shaders: GRASS2020 to GRASS2043, vs_2_0, in two
+// builds (packages 001-009 and 010-019; 48 byte images, extracted
+// 2026-11-03). Rather than carrying all 48, the plugin knows them by their
+// constant table: a vs_2_0 or later whose table names ModelViewProj,
+// InstanceData and WindData is a grass shader of this engine. Every one of
+// the 48 projects through ModelViewProj at c9 (fxc /dumpbin on each), the
+// register the supersampling passes shift (Supersample.h); the table says
+// where it is, so a build that moved it is refused rather than mis-shifted.
+struct GrassVertexShaderInfo {
+	bool grass = false;
+	int modelViewProj = -1;  // the register of its first row
+};
+GrassVertexShaderInfo IdentifyGrassVertexShader(const uint8_t* bytes, size_t length);
+
+// The constant table's float4 register for a name, -1 when the shader has no
+// table or the name is not in it. The table is the CTAB comment D3DX writes
+// before the first instruction of a shader model 2 or later shader.
+int ShaderConstantRegister(const uint8_t* bytes, size_t length, const char* name);
+
 // Builds the sharpened copy. False if the bytes are not a ps_2_x shader with
 // a texld to patch after (never the case for the two vanilla shaders, but
 // the walker refuses rather than guesses).
@@ -82,6 +101,7 @@ float ThresholdFromAlphaRef(uint32_t alphaRef);
 struct ShaderEntry {
 	int kind = 0;
 	void* replacement = nullptr;
+	bool grass = false;  // a grass vertex shader with ModelViewProj where the plugin expects it
 };
 
 class ShaderCache {

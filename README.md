@@ -30,6 +30,14 @@ supersampling, the thing NVIDIA's driver used to offer for Direct3D 9: with
 one, the edges come out smooth and stay put when you move your head. No game
 files are touched; the plugin only hooks the Direct3D device Oblivion made.
 
+The grass gets the same treatment since 2026-11-03: its blades are alpha-tested
+too and move in the wind, so their edges flickered even with your head still
+(measured frame by frame in a headset: the tall grass changed twice as much
+between frames as with the passes on). Each grass draw goes out once per
+sample, the grass shader's own alpha cut evaluated where that sample sits.
+Grass covers a lot more of the picture than leaves, so its passes default to
+4; `[Grass] Method=off` draws it as the game does.
+
 There is also an alpha-to-coverage mode (`Method=coverage`), cheaper, which
 uses the vendor back doors Direct3D 9 has for it (NVIDIA/Intel `ATOC`, AMD
 `A2M1`). Under DXVK on NVIDIA that coverage is dithered, and in a VR headset
@@ -46,6 +54,8 @@ the dither glitters, so supersampling is the default.
 - `[Leaves] SharpenLeaves=1`, `Threshold=engine`, `Steepness=4.0` belong to
   the coverage method: the leaf shaders get a copy that sharpens the alpha
   around the engine's own threshold, or distant leaves go see-through.
+- `[Grass] Method=supersample` (default) or `off`, and `[Grass] Passes=4`: the
+  grass draws in passes like the leaves, 1 to 8.
 - `[Coverage] Enable=0` would turn alpha-to-coverage on for everything else
   that is alpha-tested (grass, hair, fences). Off by default because of the
   dither; try it on a monitor if you like.

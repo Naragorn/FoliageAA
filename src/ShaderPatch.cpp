@@ -92,6 +92,87 @@ LeafVertexShader IdentifyLeafVertexShader(const uint8_t* bytes, size_t length) {
 	return LeafVertexShader::None;
 }
 
+int ShaderConstantRegister(const uint8_t* bytes, size_t length, const char* name) {
+	if (bytes == nullptr || name == nullptr || length < 8 || (length % 4) != 0) {
+		return -1;
+	}
+	const auto* code = reinterpret_cast<const uint32_t*>(bytes);
+	const uint32_t count = static_cast<uint32_t>(length / 4);
+	constexpr uint32_t kCtabFourCC = 0x42415443u;  // "CTAB"
+	uint32_t at = 1;
+	while (at < count) {
+		const uint32_t token = code[at];
+		if ((token & kOpcodeMask) != kOpcodeComment) {
+			return -1;  // the table comes before the first instruction
+		}
+		const uint32_t tokens = TokensAfter(token);
+		if (at + 1 + tokens > count) {
+			return -1;
+		}
+		if (tokens >= 8 && code[at + 1] == kCtabFourCC) {
+			const uint8_t* table = reinterpret_cast<const uint8_t*>(code + at + 2);
+			const uint32_t tableBytes = (tokens - 1) * 4;
+			const auto dword = [&](uint32_t offset) -> uint32_t {
+				uint32_t value = 0;
+				if (offset + 4 <= tableBytes) {
+					std::memcpy(&value, table + offset, 4);
+				}
+				return value;
+			};
+			const auto word = [&](uint32_t offset) -> uint16_t {
+				uint16_t value = 0;
+				if (offset + 2 <= tableBytes) {
+					std::memcpy(&value, table + offset, 2);
+				}
+				return value;
+			};
+			// D3DXSHADER_CONSTANTTABLE: Size, Creator, Version, Constants,
+			// ConstantInfo, Flags, Target; each D3DXSHADER_CONSTANTINFO is
+			// Name, RegisterSet, RegisterIndex, RegisterCount, Reserved,
+			// DefaultValue - 20 bytes, the name an offset into the table.
+			const uint32_t constants = dword(12);
+			const uint32_t info = dword(16);
+			for (uint32_t i = 0; i < constants && info + i * 20 + 20 <= tableBytes; ++i) {
+				const uint32_t entry = info + i * 20;
+				const uint32_t nameAt = dword(entry);
+				const uint16_t set = word(entry + 4);
+				const uint16_t index = word(entry + 6);
+				uint32_t k = 0;
+				while (nameAt + k < tableBytes && name[k] != '\0' && table[nameAt + k] == static_cast<uint8_t>(name[k])) {
+					++k;
+				}
+				if (name[k] == '\0' && nameAt + k < tableBytes && table[nameAt + k] == 0 && set == 2) {
+					return index;  // D3DXRS_FLOAT4
+				}
+			}
+			return -1;
+		}
+		at += 1 + tokens;
+	}
+	return -1;
+}
+
+GrassVertexShaderInfo IdentifyGrassVertexShader(const uint8_t* bytes, size_t length) {
+	GrassVertexShaderInfo info;
+	if (bytes == nullptr || length < 8 || (length % 4) != 0) {
+		return info;
+	}
+	uint32_t version = 0;
+	std::memcpy(&version, bytes, 4);
+	// A vertex shader of model 2 or later: 0xFFFE0200 and up.
+	if ((version & 0xFFFF0000u) != 0xFFFE0000u || ((version >> 8) & 0xFFu) < 2) {
+		return info;
+	}
+	const int modelViewProj = ShaderConstantRegister(bytes, length, "ModelViewProj");
+	if (modelViewProj < 0 || ShaderConstantRegister(bytes, length, "InstanceData") < 0 ||
+	    ShaderConstantRegister(bytes, length, "WindData") < 0) {
+		return info;
+	}
+	info.grass = true;
+	info.modelViewProj = modelViewProj;
+	return info;
+}
+
 const char* LeafVertexShaderName(LeafVertexShader shader) {
 	switch (shader) {
 		case LeafVertexShader::Vs000: return "STLEAF000";

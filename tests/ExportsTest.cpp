@@ -145,8 +145,8 @@ int main(int argc, char** argv) {
 	queryFn(&game, &info);
 	Check(loadFn(&game), "game Load returns true");
 	const std::string log = ReadLog();
-	Check(log.find("Enable=1 Mode=nvidia Coverage=1 Leaves=coverage Passes=4 SharpenLeaves=1 Threshold=0.60 Steepness=8.0 DumpShaders=1 ToggleKey=0x7A") != std::string::npos,
-	      "INI next to the DLL read, floats included");
+	Check(log.find("Enable=1 Mode=nvidia Coverage=1 Leaves=coverage Passes=4 Grass=supersample GrassPasses=4 SharpenLeaves=1 Threshold=0.60 Steepness=8.0 DumpShaders=1 ToggleKey=0x7A") != std::string::npos,
+	      "INI next to the DLL read, floats included, the grass at its defaults");
 	Check(log.find("Waiting for the game to initialize (Mode=nvidia, Coverage=1, Leaves=coverage, Passes=4, SharpenLeaves=1, Threshold=0.60, Steepness=8.0, DumpShaders=1, ToggleKey=0x7A)") !=
 	          std::string::npos,
 	      "waiting logged");

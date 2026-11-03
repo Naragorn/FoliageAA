@@ -109,6 +109,23 @@ bool ReadSettings(foliageaa::Settings* settings) {
 	if (settings->passes > 8) {
 		settings->passes = 8;
 	}
+	char grassMethod[32] = {};
+	GetPrivateProfileStringA("Grass", "Method", "supersample", grassMethod, sizeof(grassMethod), path);
+	if (_stricmp(grassMethod, "supersample") == 0) {
+		settings->grassSupersample = true;
+	} else if (_stricmp(grassMethod, "off") == 0) {
+		settings->grassSupersample = false;
+	} else {
+		Log("[Grass] Method=%s in the INI is not supersample or off - using supersample", grassMethod);
+		settings->grassSupersample = true;
+	}
+	settings->grassPasses = GetPrivateProfileIntA("Grass", "Passes", 4, path);
+	if (settings->grassPasses < 1) {
+		settings->grassPasses = 1;
+	}
+	if (settings->grassPasses > 8) {
+		settings->grassPasses = 8;
+	}
 	settings->sharpenLeaves = GetPrivateProfileIntA("Leaves", "SharpenLeaves", 1, path) != 0;
 	// Threshold: "engine" (or anything that is not a number) follows the
 	// engine's alpha reference; a number fixes it.
@@ -126,11 +143,12 @@ bool ReadSettings(foliageaa::Settings* settings) {
 	} else {
 		std::snprintf(threshold, sizeof(threshold), "%.2f", settings->threshold);
 	}
-	Log("Settings from %s: Enable=%d Mode=%s Coverage=%d Leaves=%s Passes=%d SharpenLeaves=%d Threshold=%s "
-	    "Steepness=%.1f DumpShaders=%d ToggleKey=0x%02X",
+	Log("Settings from %s: Enable=%d Mode=%s Coverage=%d Leaves=%s Passes=%d Grass=%s GrassPasses=%d SharpenLeaves=%d "
+	    "Threshold=%s Steepness=%.1f DumpShaders=%d ToggleKey=0x%02X",
 	    path, settings->enable ? 1 : 0, foliageaa::ModeName(settings->mode), settings->coverage ? 1 : 0,
-	    foliageaa::LeafMethodName(settings->leafMethod), settings->passes, settings->sharpenLeaves ? 1 : 0, threshold,
-	    settings->steepness, settings->dumpShaders ? 1 : 0, static_cast<unsigned>(settings->toggleKey));
+	    foliageaa::LeafMethodName(settings->leafMethod), settings->passes,
+	    settings->grassSupersample ? "supersample" : "off", settings->grassPasses, settings->sharpenLeaves ? 1 : 0,
+	    threshold, settings->steepness, settings->dumpShaders ? 1 : 0, static_cast<unsigned>(settings->toggleKey));
 	return true;
 }
 
@@ -211,6 +229,8 @@ void SetupDeviceSideEffect(void* device, const foliageaa::Settings& settings) {
 	options.coverage = settings.coverage;
 	options.leafMethod = settings.leafMethod;
 	options.passes = settings.passes;
+	options.grassSupersample = settings.grassSupersample;
+	options.grassPasses = settings.grassPasses;
 	options.sharpenLeaves = settings.sharpenLeaves;
 	options.threshold = settings.threshold;
 	options.steepness = settings.steepness;

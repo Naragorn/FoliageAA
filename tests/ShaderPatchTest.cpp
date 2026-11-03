@@ -2,9 +2,11 @@
 // copy's token stream, the constants and their clamps, the refusals, and the
 // cache.
 
+#include "GrassShaderFixtures.h"
 #include "LeafShaders.h"
 #include "ShaderPatch.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -175,6 +177,52 @@ void TestIdentifyVertexShaders() {
 	      "vertex shader names");
 }
 
+// The grass vertex shaders by their constant table (ShaderPatch.h,
+// IdentifyGrassVertexShader): the real GRASS2020 of package 019, the names
+// it must carry, where they are, and everything that is not one.
+void TestIdentifyGrass() {
+	Check(ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), "ModelViewProj") == 9, "ModelViewProj at c9");
+	Check(ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), "InstanceData") == 20, "InstanceData at c20");
+	Check(ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), "WindData") == 4, "WindData at c4");
+	Check(ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), "DiffuseDir") == 0, "DiffuseDir at c0");
+	Check(ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), "ModelViewPro") == -1, "a prefix is not a name");
+	Check(ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), "NoSuchName") == -1, "a name not in the table");
+	Check(ShaderConstantRegister(kGrassPs2002, sizeof(kGrassPs2002), "AlphaTestRef") == 3, "the grass pixel shader's AlphaTestRef at c3");
+	Check(ShaderConstantRegister(kGrassPs2002, sizeof(kGrassPs2002), "DiffuseMap") == -1,
+	      "a sampler is not a float4 register");
+	Check(ShaderConstantRegister(kLeafVs000_0C737235, sizeof(kLeafVs000_0C737235), "InstanceData") == -1,
+	      "a leaf shader's table has no InstanceData");
+	Check(ShaderConstantRegister(nullptr, 0, "ModelViewProj") == -1 &&
+	          ShaderConstantRegister(kGrassVs2020, 6, "ModelViewProj") == -1 &&
+	          ShaderConstantRegister(kGrassVs2020, sizeof(kGrassVs2020), nullptr) == -1,
+	      "null, a length that is no whole tokens, a null name: nothing");
+	Check(ShaderConstantRegister(kGrassVs2020, 40, "ModelViewProj") == -1, "a table cut short is not read past its end");
+
+	GrassVertexShaderInfo info = IdentifyGrassVertexShader(kGrassVs2020, sizeof(kGrassVs2020));
+	Check(info.grass && info.modelViewProj == 9, "GRASS2020 is a grass vertex shader with ModelViewProj at c9");
+	info = IdentifyGrassVertexShader(kGrassPs2002, sizeof(kGrassPs2002));
+	Check(!info.grass && info.modelViewProj == -1, "a pixel shader is no grass vertex shader");
+	info = IdentifyGrassVertexShader(kLeafVs000_0C737235, sizeof(kLeafVs000_0C737235));
+	Check(!info.grass, "a leaf vertex shader is no grass vertex shader");
+	info = IdentifyGrassVertexShader(nullptr, 0);
+	Check(!info.grass, "null is none");
+	info = IdentifyGrassVertexShader(kGrassVs2020, sizeof(kGrassVs2020) - 2);
+	Check(!info.grass, "a length that is no whole tokens is none");
+	// The same shader with one of its three names spoilt in the table: not
+	// known any more, so a package whose grass shaders differ is left alone.
+	std::vector<uint8_t> altered(kGrassVs2020, kGrassVs2020 + sizeof(kGrassVs2020));
+	const char* name = "WindData";
+	const auto it = std::search(altered.begin(), altered.end(), name, name + 8);
+	Check(it != altered.end(), "WindData found in the table");
+	if (it != altered.end()) {
+		*it = 'X';
+		info = IdentifyGrassVertexShader(altered.data(), altered.size());
+		Check(!info.grass, "without WindData in its table it is not a grass shader");
+	}
+	Check(IdentifyLeafVertexShader(kGrassVs2020, sizeof(kGrassVs2020)) == LeafVertexShader::None,
+	      "a grass vertex shader is no leaf vertex shader");
+}
+
 }  // namespace
 
 int main() {
@@ -185,6 +233,7 @@ int main() {
 	TestBuildRefusals();
 	TestCache();
 	TestIdentifyVertexShaders();
+	TestIdentifyGrass();
 	std::printf(g_failures == 0 ? "ShaderPatchTest: all passed\n" : "ShaderPatchTest: %d failed\n", g_failures);
 	return g_failures == 0 ? 0 : 1;
 }

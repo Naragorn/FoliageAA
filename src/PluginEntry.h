@@ -51,6 +51,9 @@ struct Settings {
 	// "follow the engine's alpha reference".
 	LeafMethod leafMethod = LeafMethod::Supersample;
 	int passes = 8;
+	// [Grass]: Method (supersample or off) and Passes.
+	bool grassSupersample = true;
+	int grassPasses = 4;
 	bool sharpenLeaves = true;
 	float threshold = -1.0f;
 	float steepness = 4.0f;

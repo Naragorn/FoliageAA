@@ -88,4 +88,18 @@ bool PlanLeafDraw(const DeviceShadow& shadow, int requestedPasses, LeafDrawPlan*
 // Why PlanLeafDraw said no, for the log; "" when it said yes.
 const char* LeafDrawRefusal(const DeviceShadow& shadow, int requestedPasses);
 
+// The grass the same way (Nadi in the headset, 2026-11-02: the grass
+// flickers with the head still - the wind moves alpha-tested blades whose
+// edges no antialiasing touches; OBVR's frame-by-frame harness measured the
+// tall grass changing 17 grey units a frame against 0.6 on the lawn). A
+// grass draw is a draw with a vanilla grass vertex shader bound
+// (ShaderPatch.h); its clip rows are ModelViewProj at c9..c12 (Shadow.h,
+// kGrassClipBase), shifted per pass as the leaves' c0..c3 are. The grass
+// pixel shaders cut the alpha themselves (cmp against AlphaTestRef), so the
+// engine's alpha test is not required here: each pass evaluates the shader
+// at its sample's place, and what the shader cuts stays cut for that sample
+// whether the alpha test or the blend carries it.
+bool PlanGrassDraw(const DeviceShadow& shadow, int requestedPasses, LeafDrawPlan* plan);
+const char* GrassDrawRefusal(const DeviceShadow& shadow, int requestedPasses);
+
 }  // namespace foliageaa

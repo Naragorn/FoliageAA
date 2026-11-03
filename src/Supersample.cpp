@@ -106,4 +106,29 @@ bool PlanLeafDraw(const DeviceShadow& shadow, int requestedPasses, LeafDrawPlan*
 	return plan->passes >= 2;
 }
 
+const char* GrassDrawRefusal(const DeviceShadow& shadow, int requestedPasses) {
+	if (!shadow.grassVertexShader) {
+		return "no grass vertex shader bound";
+	}
+	if (shadow.targetSamples < 2) {
+		return "render target 0 is not multisampled (or its samples cannot be masked)";
+	}
+	if (shadow.viewportWidth == 0 || shadow.viewportHeight == 0) {
+		return "no viewport";
+	}
+	SupersamplePass passes[kMaxPasses];
+	if (PlanPasses(shadow.targetSamples, requestedPasses, passes) < 2) {
+		return "fewer than two passes asked for, or an unsupported sample count";
+	}
+	return "";
+}
+
+bool PlanGrassDraw(const DeviceShadow& shadow, int requestedPasses, LeafDrawPlan* plan) {
+	if (GrassDrawRefusal(shadow, requestedPasses)[0] != '\0') {
+		return false;
+	}
+	plan->passes = PlanPasses(shadow.targetSamples, requestedPasses, plan->pass);
+	return plan->passes >= 2;
+}
+
 }  // namespace foliageaa

@@ -37,6 +37,10 @@ std::unordered_set<void*> g_dumped;
 int g_dumpCount = 0;
 bool g_announcedSupersample = false;
 int g_unknownVertexShaderLogs = 0;
+bool g_grassSupersample = false;  // grass draws in passes ([Grass] Method=supersample)
+bool g_announcedGrass = false;
+int g_grassRefusalLogs = 0;
+int g_grassRegisterLogs = 0;
 
 // The toggle key: off means the leaves and coverage as the game draws them.
 bool g_active = true;
@@ -226,15 +230,66 @@ void OnPixelShaderCreated(void*, void* shader) {
 void OnVertexShader(void*, void* rawShader) {
 	if (rawShader == nullptr) {
 		g_shadow.vertexShader = LeafVertexShader::None;
+		g_shadow.grassVertexShader = false;
 		return;
 	}
 	ShaderEntry entry;
 	if (!g_vertexShaders.Lookup(rawShader, &entry)) {
 		const std::vector<uint8_t> bytes = FunctionOf(static_cast<IUnknown*>(rawShader), true);
 		entry.kind = static_cast<int>(IdentifyLeafVertexShader(bytes.data(), bytes.size()));
+		const GrassVertexShaderInfo grass = IdentifyGrassVertexShader(bytes.data(), bytes.size());
+		entry.grass = grass.grass && grass.modelViewProj == static_cast<int>(kGrassClipBase);
+		if (grass.grass && !entry.grass && g_grassRegisterLogs < 3) {
+			++g_grassRegisterLogs;
+			g_log("A grass vertex shader with ModelViewProj at c%d, not c%u - its draws are left as they are",
+			      grass.modelViewProj, kGrassClipBase);
+		}
 		g_vertexShaders.Remember(rawShader, entry);
 	}
 	g_shadow.vertexShader = static_cast<LeafVertexShader>(entry.kind);
+	g_shadow.grassVertexShader = entry.grass;
+}
+
+// The grass draw in passes, the leaf draw's way with the rows at c9..c12.
+long FilterGrassDraw(void* rawDevice, DrawIssue issue, void* context) {
+	LeafDrawPlan plan;
+	if (!PlanGrassDraw(g_shadow, g_options.grassPasses, &plan)) {
+		if (g_grassRefusalLogs < 3) {
+			++g_grassRefusalLogs;
+			g_log("Grass draw not supersampled: %s", GrassDrawRefusal(g_shadow, g_options.grassPasses));
+		}
+		return issue(context);
+	}
+	StateWrite writes[2];
+	int count = SuspendCoverageWrites(g_hack, writes);
+	ApplyWrites(rawDevice, writes, count);
+
+	float jittered[8];
+	long result = 0;
+	for (int i = 0; i < plan.passes; ++i) {
+		JitterClipRows(g_shadow.grassRows, plan.pass[i].offsetX, plan.pass[i].offsetY, g_shadow.viewportWidth,
+		               g_shadow.viewportHeight, jittered);
+		SetVertexShaderConstantFDirect(rawDevice, kGrassClipBase, jittered, 2);
+		SetRenderStateDirect(rawDevice, kRsMultiSampleMask, plan.pass[i].mask);
+		const long hr = issue(context);
+		if (hr < 0) {
+			result = hr;
+		}
+	}
+	SetVertexShaderConstantFDirect(rawDevice, kGrassClipBase, g_shadow.grassRows, 2);
+	SetRenderStateDirect(rawDevice, kRsMultiSampleMask, g_shadow.multiSampleMask);
+	count = ResumeCoverageWrites(g_hack, g_shadow.alphaTestEnable, writes);
+	ApplyWrites(rawDevice, writes, count);
+
+	if (!g_announcedGrass) {
+		g_announcedGrass = true;
+		g_log("First grass draw supersampled: %d passes on a %u-sample target, viewport %ux%u; the engine draws its grass "
+		      "with the alpha test %s (ref %u), the alpha blend %s, depth writes %s",
+		      plan.passes, g_shadow.targetSamples, g_shadow.viewportWidth, g_shadow.viewportHeight,
+		      g_shadow.alphaTestEnable ? "on" : "off", g_shadow.alphaRef, g_shadow.alphaBlendEnable ? "on" : "off",
+		      g_shadow.zWriteEnable ? "on" : "off");
+	}
+	return result;
 }
 
 void OnVertexShaderCreated(void*, void* shader) {
@@ -267,6 +322,9 @@ void OnRenderTarget(void*, uint32_t index, void* surface) {
 }
 
 long FilterDraw(void* rawDevice, DrawIssue issue, void* context) {
+	if (g_grassSupersample && g_active && g_shadow.grassVertexShader) {
+		return FilterGrassDraw(rawDevice, issue, context);
+	}
 	if (!g_supersample || !g_active || g_shadow.pixelShader == LeafShader::None) {
 		return issue(context);
 	}
@@ -425,7 +483,8 @@ SetupResult SetupDevice(void* rawDevice, const Options& options, LogFn log) {
 		log("Coverage: off in the INI");
 	}
 	const bool supersample = options.leafMethod == LeafMethod::Supersample && options.passes >= 2;
-	if (result.hack == Hack::None && !supersample) {
+	const bool grassSupersample = options.grassSupersample && options.grassPasses >= 2;
+	if (result.hack == Hack::None && !supersample && !grassSupersample) {
 		log("Nothing to do: no coverage and no supersampling - the device is left alone");
 		device->Release();
 		return result;
@@ -435,6 +494,10 @@ SetupResult SetupDevice(void* rawDevice, const Options& options, LogFn log) {
 	g_announcedLive = false;
 	g_sharpen = options.leafMethod == LeafMethod::Coverage && options.sharpenLeaves && result.hack != Hack::None;
 	g_supersample = supersample;
+	g_grassSupersample = grassSupersample;
+	g_announcedGrass = false;
+	g_grassRefusalLogs = 0;
+	g_grassRegisterLogs = 0;
 	g_leafCopyBound = false;
 	g_alphaRefsSeen.clear();
 	g_dumped.clear();
@@ -456,12 +519,23 @@ SetupResult SetupDevice(void* rawDevice, const Options& options, LogFn log) {
 		g_hack = Hack::None;
 		g_sharpen = false;
 		g_supersample = false;
+		g_grassSupersample = false;
 		log("Could not hook the device: %s - nothing enabled", error);
 		return result;
 	}
 	result.hooksInstalled = true;
 	result.sharpening = g_sharpen;
 	result.supersampling = g_supersample;
+	result.grassSupersampling = g_grassSupersample;
+	if (g_grassSupersample) {
+		log("Grass: supersampled - each grass draw issued in up to %d passes, one run of samples each, the grass "
+		    "shaders' own alpha cut evaluated at each sample (coverage off for those draws)",
+		    options.grassPasses);
+	} else if (options.grassSupersample) {
+		log("Grass: Passes=%d asks for no supersampling - grass drawn plainly", options.grassPasses);
+	} else {
+		log("Grass: off in the INI - grass drawn as the game draws it");
+	}
 	if (result.hack != Hack::None) {
 		log("Coverage: %s enabled on %s, applied from the next frame on", HackName(result.hack), VendorName(result.vendor));
 	}

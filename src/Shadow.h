@@ -28,17 +28,33 @@ struct DeviceShadow {
 	// The vertex constants c0..c3 as the engine last wrote them: the rows of
 	// the clip-space matrix for every leaf vertex shader.
 	float clipRows[16] = {};
+	// And c9..c12 (kGrassClipBase): ModelViewProj of every grass vertex
+	// shader, the rows the grass passes shift.
+	float grassRows[16] = {};
 	LeafShader pixelShader = LeafShader::None;
 	LeafVertexShader vertexShader = LeafVertexShader::None;
+	// A grass vertex shader is bound, with ModelViewProj at kGrassClipBase.
+	bool grassVertexShader = false;
+	// D3DRS_ALPHABLENDENABLE and D3DRS_ZWRITEENABLE, for the log of the
+	// first grass draw: how the engine draws its grass (the grass pixel
+	// shaders cut the alpha themselves; whether the alpha test or the blend
+	// carries that cut is read there, not assumed).
+	uint32_t alphaBlendEnable = 0;
+	uint32_t zWriteEnable = 1;
 };
 
 // d3d9types.h render state numbers the shadow follows.
 constexpr uint32_t kRsAlphaRef = 24;
 constexpr uint32_t kRsMultiSampleMask = 162;
+constexpr uint32_t kRsAlphaBlendEnable = 27;
+constexpr uint32_t kRsZWriteEnable = 14;
+// The register of the grass shaders' ModelViewProj (all 48 vanilla grass
+// vertex shaders, fxc /dumpbin 2026-11-03).
+constexpr uint32_t kGrassClipBase = 9;
 
 void ShadowRenderState(DeviceShadow* shadow, uint32_t state, uint32_t value);
-// SetVertexShaderConstantF's arguments: whichever of the registers 0..3 the
-// write covers are taken over.
+// SetVertexShaderConstantF's arguments: whichever of the registers 0..3 and
+// 9..12 the write covers are taken over.
 void ShadowVertexConstants(DeviceShadow* shadow, uint32_t startRegister, const float* data, uint32_t count);
 void ShadowViewport(DeviceShadow* shadow, uint32_t width, uint32_t height);
 // From the new render target 0's D3DSURFACE_DESC::MultiSampleType.
