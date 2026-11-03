@@ -779,14 +779,36 @@ void TestGrassSupersampling(TestDevice& test) {
 	test.device->EndScene();
 	TeardownDevice();
 
-	// Grass alone, leaves and coverage off: still something to do.
+	// Grass alone, the leaves off in the INI ([Leaves] Method=off) and no
+	// coverage: still something to do, and a leaf draw goes out once.
 	g_lines.clear();
 	options.grassPasses = 4;
-	options.passes = 1;
+	options.passes = 8;
+	options.leafMethod = LeafMethod::Off;
 	result = SetupDevice(test.device, options, &Log);
-	Check(result.hooksInstalled && result.grassSupersampling && !result.supersampling,
-	      "grass supersampling alone keeps the hooks");
+	Check(result.hooksInstalled && result.grassSupersampling && !result.supersampling && !result.sharpening &&
+	          Logged("Leaves: off in the INI - leaves drawn as the game draws them"),
+	      "grass supersampling alone keeps the hooks, the leaves announced off");
+	test.device->SetVertexShader(leafVs);
+	test.device->SetPixelShader(leafPs);
+	test.device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	test.device->BeginScene();
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 1 && g_records[0].mask == 0xFFFFFFFF, "leaves off: one plain leaf draw");
+	test.device->SetVertexShader(grassVs);
+	test.device->SetPixelShader(grassPs);
+	g_records.clear();
+	test.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, 3, 0, 1);
+	Check(g_records.size() == 4, "leaves off: the grass still in four passes");
+	test.device->EndScene();
 	TeardownDevice();
+
+	// Everything off: nothing to do, the device left alone.
+	g_lines.clear();
+	options.grassSupersample = false;
+	result = SetupDevice(test.device, options, &Log);
+	Check(!result.hooksInstalled && Logged("Nothing to do"), "leaves off, grass off, no coverage: nothing installed");
 
 	WriteSlot(vtable, kSlotDrawPrimitive, originalDraw);
 	WriteSlot(vtable, kSlotDrawIndexedPrimitive, originalIndexedDraw);

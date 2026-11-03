@@ -101,9 +101,9 @@ bool TargetIsMultisampled(uint32_t multiSampleType, uint32_t multiSampleQuality)
 
 // How the leaves are antialiased: the supersampling passes (Supersample.h)
 // or coverage with the sharpened shader (ShaderPatch.h).
-enum class LeafMethod { Supersample, Coverage };
-// Case-insensitive "supersample" or "coverage"; false and *out untouched for
-// anything else.
+enum class LeafMethod { Supersample, Coverage, Off };
+// Case-insensitive "supersample", "coverage" or "off"; false and *out
+// untouched for anything else.
 bool ParseLeafMethod(const char* text, LeafMethod* out);
 const char* LeafMethodName(LeafMethod method);
 

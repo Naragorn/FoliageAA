@@ -99,7 +99,7 @@ bool ReadSettings(foliageaa::Settings* settings) {
 	char method[32] = {};
 	GetPrivateProfileStringA("Leaves", "Method", "supersample", method, sizeof(method), path);
 	if (!foliageaa::ParseLeafMethod(method, &settings->leafMethod)) {
-		Log("Method=%s in the INI is not supersample or coverage - using supersample", method);
+		Log("[Leaves] Method=%s in the INI is not supersample, coverage or off - using supersample", method);
 		settings->leafMethod = foliageaa::LeafMethod::Supersample;
 	}
 	settings->passes = GetPrivateProfileIntA("Leaves", "Passes", 8, path);

@@ -515,6 +515,8 @@ SetupResult SetupDevice(void* rawDevice, const Options& options, LogFn log) {
 		log("Leaves: supersampled - each leaf draw issued in up to %d passes, one run of samples each, with the engine's "
 		    "alpha test (coverage off for those draws)",
 		    options.passes);
+	} else if (options.leafMethod == LeafMethod::Off) {
+		log("Leaves: off in the INI - leaves drawn as the game draws them");
 	} else if (options.leafMethod == LeafMethod::Supersample) {
 		log("Leaves: Passes=%d asks for no supersampling - leaves drawn plainly", options.passes);
 	} else if (g_sharpen) {

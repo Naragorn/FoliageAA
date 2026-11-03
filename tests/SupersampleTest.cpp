@@ -283,9 +283,11 @@ void TestCoverageSuspend() {
 	Check(ParseLeafMethod("Supersample", &method) && method == LeafMethod::Supersample, "parse supersample");
 	Check(ParseLeafMethod("coverage", &method) && method == LeafMethod::Coverage, "parse coverage");
 	Check(!ParseLeafMethod("ssaa", &method) && method == LeafMethod::Coverage, "unknown refused, untouched");
+	Check(ParseLeafMethod("OFF", &method) && method == LeafMethod::Off, "parse off, any case");
 	Check(!ParseLeafMethod(nullptr, &method), "null refused");
 	Check(std::strcmp(LeafMethodName(LeafMethod::Supersample), "supersample") == 0 &&
-	          std::strcmp(LeafMethodName(LeafMethod::Coverage), "coverage") == 0,
+	          std::strcmp(LeafMethodName(LeafMethod::Coverage), "coverage") == 0 &&
+	          std::strcmp(LeafMethodName(LeafMethod::Off), "off") == 0,
 	      "method names");
 }
 

@@ -40,8 +40,10 @@ mod manager do it. To remove it, delete the two files. Nothing else changes.
 
 **Settings** (`FoliageAA.ini`)
 
+- `[Main] Enable=0` switches the whole plugin off, for comparing.
 - `[Leaves] Passes=8`: how many passes a leaf draw gets. 8 on 8x antialiasing
-  gives every sample its own alpha test; 4 halves the cost.
+  gives every sample its own alpha test; 4 halves the cost. `Method=off`
+  leaves the trees as the game draws them.
 - `[Grass] Passes=4`: the same for the grass. Grass covers a lot of the
   picture, so it starts at 4; `Method=off` draws the grass as the game does.
 - The plugin writes `FoliageAA.log` next to `Oblivion.exe` and says there what

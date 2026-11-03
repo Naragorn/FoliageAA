@@ -47,8 +47,9 @@ the dither glitters, so supersampling is the default.
 
 `FoliageAA.ini` next to the DLL:
 
-- `[Main] Enable=1` turns it on, `0` makes the plugin do nothing.
-- `[Leaves] Method=supersample` (default) or `coverage`.
+- `[Main] Enable=1` turns it on, `0` makes the plugin do nothing - the switch
+  for comparing with and without.
+- `[Leaves] Method=supersample` (default), `coverage` or `off`.
 - `[Leaves] Passes=8` is how many passes a leaf draw gets, 1 to 8. 8 on 8x
   antialiasing gives every sample its own alpha test; 4 halves the cost.
 - `[Leaves] SharpenLeaves=1`, `Threshold=engine`, `Steepness=4.0` belong to

@@ -155,6 +155,8 @@ bool ParseLeafMethod(const char* text, LeafMethod* out) {
 		*out = LeafMethod::Supersample;
 	} else if (EqualsIgnoringCase(text, "coverage")) {
 		*out = LeafMethod::Coverage;
+	} else if (EqualsIgnoringCase(text, "off")) {
+		*out = LeafMethod::Off;
 	} else {
 		return false;
 	}
@@ -165,6 +167,7 @@ const char* LeafMethodName(LeafMethod method) {
 	switch (method) {
 		case LeafMethod::Supersample: return "supersample";
 		case LeafMethod::Coverage: return "coverage";
+		case LeafMethod::Off: return "off";
 	}
 	return "supersample";
 }
