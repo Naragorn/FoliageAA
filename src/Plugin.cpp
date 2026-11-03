@@ -132,11 +132,6 @@ bool ReadSettings(foliageaa::Settings* settings) {
 	settings->threshold = ReadFloat(path, "Leaves", "Threshold", -1.0f);
 	settings->steepness = ReadFloat(path, "Leaves", "Steepness", 4.0f);
 	settings->dumpShaders = GetPrivateProfileIntA("Diagnostics", "DumpShaders", 0, path) != 0;
-	// ToggleKey: decimal or 0x-hex virtual-key code; anything else is no key.
-	char key[32] = {};
-	GetPrivateProfileStringA("Diagnostics", "ToggleKey", "0", key, sizeof(key), path);
-	const long keyCode = std::strtol(key, nullptr, 0);
-	settings->toggleKey = keyCode > 0 && keyCode < 256 ? static_cast<int>(keyCode) : 0;
 	char threshold[16];
 	if (settings->threshold < 0.0f) {
 		std::snprintf(threshold, sizeof(threshold), "engine");
@@ -144,11 +139,11 @@ bool ReadSettings(foliageaa::Settings* settings) {
 		std::snprintf(threshold, sizeof(threshold), "%.2f", settings->threshold);
 	}
 	Log("Settings from %s: Enable=%d Mode=%s Coverage=%d Leaves=%s Passes=%d Grass=%s GrassPasses=%d SharpenLeaves=%d "
-	    "Threshold=%s Steepness=%.1f DumpShaders=%d ToggleKey=0x%02X",
+	    "Threshold=%s Steepness=%.1f DumpShaders=%d",
 	    path, settings->enable ? 1 : 0, foliageaa::ModeName(settings->mode), settings->coverage ? 1 : 0,
 	    foliageaa::LeafMethodName(settings->leafMethod), settings->passes,
 	    settings->grassSupersample ? "supersample" : "off", settings->grassPasses, settings->sharpenLeaves ? 1 : 0,
-	    threshold, settings->steepness, settings->dumpShaders ? 1 : 0, static_cast<unsigned>(settings->toggleKey));
+	    threshold, settings->steepness, settings->dumpShaders ? 1 : 0);
 	return true;
 }
 
@@ -234,7 +229,6 @@ void SetupDeviceSideEffect(void* device, const foliageaa::Settings& settings) {
 	options.sharpenLeaves = settings.sharpenLeaves;
 	options.threshold = settings.threshold;
 	options.steepness = settings.steepness;
-	options.toggleKey = settings.toggleKey;
 	if (settings.dumpShaders) {
 		options.dumpDirectory = "FoliageAA-shaders";  // in the game folder, next to the log
 	}

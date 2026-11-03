@@ -1,9 +1,9 @@
 # FoliageAA
 
-Tree leaves shimmering in the distance in Oblivion (2006)? This little xOBSE
-plugin supersamples them: the game's own leaf edges, antialiased for real,
-the way "Transparency Supersampling" in the graphics driver used to do it.
-Works flat and in VR.
+Tree leaves shimmering in the distance in Oblivion (2006), grass flickering
+in the wind? This little xOBSE plugin supersamples them: the game's own leaf
+and grass edges, antialiased for real, the way "Transparency Supersampling"
+in the graphics driver used to do it. Works flat and in VR.
 
 **Like it? Buy me a coffee on [Ko-fi](https://ko-fi.com/somadb).** (somadb is a
 different project I work on, but I confirm this Ko-fi link goes to me, the one

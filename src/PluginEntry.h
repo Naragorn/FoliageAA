@@ -28,7 +28,7 @@ struct PluginInfo {
 };
 
 constexpr const char* kPluginName = "FoliageAA";
-constexpr uint32_t kPluginVersion = 1;
+constexpr uint32_t kPluginVersion = 2;  // 1: the leaves (2026-10); 2: the grass too, the toggle key gone (2026-11)
 constexpr uint32_t kInfoVersion = 3;
 
 // obse_common/obse_version.h: MAKE_OBLIVION_VERSION(1, 2, 416). The plugin
@@ -59,9 +59,6 @@ struct Settings {
 	float steepness = 4.0f;
 	// [Diagnostics] DumpShaders.
 	bool dumpShaders = false;
-	// [Diagnostics] ToggleKey: a virtual-key code that switches the plugin
-	// off and on in the game, 0 for none.
-	int toggleKey = 0;
 };
 
 struct Host {

@@ -85,9 +85,9 @@ void TestQuery() {
 	g_fake = &fake;
 	foliageaa::PluginInfo info{};
 	Check(foliageaa::Query(kGame, &info, kFakeHost), "Query true");
-	Check(info.infoVersion == 3 && std::string(info.name) == "FoliageAA" && info.version == 1, "Query fills PluginInfo");
+	Check(info.infoVersion == 3 && std::string(info.name) == "FoliageAA" && info.version == 2, "Query fills PluginInfo");
 	Check(fake.resets == 1, "Query resets the log");
-	Check(fake.Logged("FoliageAA 1 - xOBSE 22, Oblivion 010201A0, editor=0"), "Query logs the versions");
+	Check(fake.Logged("FoliageAA 2 - xOBSE 22, Oblivion 010201A0, editor=0"), "Query logs the versions");
 }
 
 void TestLoadEditor() {
@@ -145,7 +145,7 @@ void TestLoadOk() {
 	foliageaa::ResetForTest();
 	Check(foliageaa::Load(kGame, kFakeHost), "Load true");
 	Check(fake.registrations == 1 &&
-	          fake.Logged("Waiting for the game to initialize (Mode=nvidia, Coverage=0, Leaves=supersample, Passes=8, SharpenLeaves=1, Threshold=engine, Steepness=4.0, DumpShaders=0, ToggleKey=0x00)"),
+	          fake.Logged("Waiting for the game to initialize (Mode=nvidia, Coverage=0, Leaves=supersample, Passes=8, Grass=supersample, GrassPasses=4, SharpenLeaves=1, Threshold=engine, Steepness=4.0, DumpShaders=0)"),
 	      "registered with the INI's settings");
 	Check(foliageaa::LoadedSettings().mode == Mode::Nvidia, "settings kept for the message");
 }

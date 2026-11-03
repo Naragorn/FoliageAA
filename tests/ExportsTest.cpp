@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
 	{
 		std::ofstream file(ini);
 		file << "[Main]\nEnable=1\nMode=nvidia\n[Leaves]\nMethod=coverage\nPasses=4\nSharpenLeaves=1\nThreshold=0.6\n"
-		        "Steepness=8\n[Coverage]\nEnable=1\n[Diagnostics]\nDumpShaders=1\nToggleKey=0x7A\n";
+		        "Steepness=8\n[Coverage]\nEnable=1\n[Diagnostics]\nDumpShaders=1\n";
 	}
 
 	HMODULE module = LoadLibraryA(dll);
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
 	Info info{};
 	Obse editor{22, 0, 0x01020000, 1, nullptr, nullptr, &QueryInterface, &GetPluginHandle};
 	Check(queryFn(&editor, &info), "Query returns true");
-	Check(info.infoVersion == 3 && info.name != nullptr && std::strcmp(info.name, "FoliageAA") == 0 && info.version == 1,
+	Check(info.infoVersion == 3 && info.name != nullptr && std::strcmp(info.name, "FoliageAA") == 0 && info.version == 2,
 	      "Query fills PluginInfo");
 	Check(loadFn(&editor), "editor Load returns true");
 	Check(ReadLog().find("Editor: nothing to do") != std::string::npos, "editor Load logged");
@@ -145,9 +145,9 @@ int main(int argc, char** argv) {
 	queryFn(&game, &info);
 	Check(loadFn(&game), "game Load returns true");
 	const std::string log = ReadLog();
-	Check(log.find("Enable=1 Mode=nvidia Coverage=1 Leaves=coverage Passes=4 Grass=supersample GrassPasses=4 SharpenLeaves=1 Threshold=0.60 Steepness=8.0 DumpShaders=1 ToggleKey=0x7A") != std::string::npos,
+	Check(log.find("Enable=1 Mode=nvidia Coverage=1 Leaves=coverage Passes=4 Grass=supersample GrassPasses=4 SharpenLeaves=1 Threshold=0.60 Steepness=8.0 DumpShaders=1") != std::string::npos,
 	      "INI next to the DLL read, floats included, the grass at its defaults");
-	Check(log.find("Waiting for the game to initialize (Mode=nvidia, Coverage=1, Leaves=coverage, Passes=4, SharpenLeaves=1, Threshold=0.60, Steepness=8.0, DumpShaders=1, ToggleKey=0x7A)") !=
+	Check(log.find("Waiting for the game to initialize (Mode=nvidia, Coverage=1, Leaves=coverage, Passes=4, Grass=supersample, GrassPasses=4, SharpenLeaves=1, Threshold=0.60, Steepness=8.0, DumpShaders=1)") !=
 	          std::string::npos,
 	      "waiting logged");
 	Check(g_handler != nullptr && g_listenerHandle == 7 && g_sender == "OBSE", "listener registered for OBSE with the plugin handle");
